@@ -1,5 +1,6 @@
 import discord
 from discord.ext import commands
+from discord import app_commands
 import json
 import os
 from dotenv import load_dotenv
@@ -11,10 +12,10 @@ load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 OMDB_API_KEY = os.getenv('OMDB_API_KEY')
 
-# Initialize bot with command prefix
+# Initialize bot
 intents = discord.Intents.default()
 intents.message_content = True
-bot = commands.Bot(command_prefix='!', intents=intents)
+bot = commands.Bot(command_prefix='/', intents=intents)
 
 # Database file
 DB_FILE = 'movies.json'
@@ -22,11 +23,11 @@ DB_FILE = 'movies.json'
 # Channel ID where bot will respond (set to None to allow all channels)
 ALLOWED_CHANNEL_ID = 1481502489625886923  # Replace with your channel ID, e.g., 1234567890
 
-def is_allowed_channel(ctx):
+def is_allowed_channel(interaction: discord.Interaction) -> bool:
     """Check if command is in allowed channel"""
     if ALLOWED_CHANNEL_ID is None:
         return True
-    return ctx.channel.id == ALLOWED_CHANNEL_ID
+    return interaction.channel.id == ALLOWED_CHANNEL_ID
 
 async def get_movie_info(movie_name):
     """Fetch movie info from OMDb API"""
@@ -69,17 +70,21 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
+    await bot.tree.sync()
     print(f'{bot.user} has connected to Discord!')
+    print(f'Synced slash commands')
     print('------')
 
-@bot.command(name='add_watched', help='Add a movie to watched list: !add_watched <movie_name>')
-@commands.check(is_allowed_channel)
-async def add_watched(ctx, *, movie_name):
+@bot.tree.command(name='add_watched', description='Add a movie to watched list')
+@app_commands.check(is_allowed_channel)
+async def add_watched(interaction: discord.Interaction, movie_name: str):
     """Add a movie to the watched list"""
+    await interaction.response.defer()
+    
     movies = load_movies()
     
     if movie_name in movies['watched']:
-        await ctx.send(f'"{movie_name}" is already in your watched list!')
+        await interaction.followup.send(f'"{movie_name}" is already in your watched list!')
         return
     
     # Remove from want_to_watch if it's there
@@ -107,18 +112,20 @@ async def add_watched(ctx, *, movie_name):
         if movie_info['poster'] and movie_info['poster'] != 'N/A':
             embed.set_thumbnail(url=movie_info['poster'])
         embed.description = "Added to watched list!"
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
     else:
-        await ctx.send(f'✅ Added "{movie_name}" to watched list!')
+        await interaction.followup.send(f'✅ Added "{movie_name}" to watched list!')
 
-@bot.command(name='add_want', help='Add a movie to want to watch list: !add_want <movie_name>')
-@commands.check(is_allowed_channel)
-async def add_want(ctx, *, movie_name):
+@bot.tree.command(name='add_want', description='Add a movie to want to watch list')
+@app_commands.check(is_allowed_channel)
+async def add_want(interaction: discord.Interaction, movie_name: str):
     """Add a movie to the want to watch list"""
+    await interaction.response.defer()
+    
     movies = load_movies()
     
     if movie_name in movies['want_to_watch']:
-        await ctx.send(f'"{movie_name}" is already in your want to watch list!')
+        await interaction.followup.send(f'"{movie_name}" is already in your want to watch list!')
         return
     
     # Remove from watched if it's there
@@ -146,16 +153,18 @@ async def add_want(ctx, *, movie_name):
         if movie_info['poster'] and movie_info['poster'] != 'N/A':
             embed.set_thumbnail(url=movie_info['poster'])
         embed.description = "Added to want to watch list!"
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
     else:
-        await ctx.send(f'📝 Added "{movie_name}" to want to watch list!')
+        await interaction.followup.send(f'📝 Added "{movie_name}" to want to watch list!')
 
-@bot.command(name='movie_info', help='Get IMDb info about a movie: !movie_info <movie_name>')
-@commands.check(is_allowed_channel)
-async def movie_info(ctx, *, movie_name):
+@bot.tree.command(name='movie_info', description='Get IMDb info about a movie')
+@app_commands.check(is_allowed_channel)
+async def movie_info(interaction: discord.Interaction, movie_name: str):
     """Get IMDb information about a movie"""
+    await interaction.response.defer()
+    
     if not OMDB_API_KEY:
-        await ctx.send('❌ IMDb API key not configured!')
+        await interaction.followup.send('❌ IMDb API key not configured!')
         return
     
     movie_data = await get_movie_info(movie_name)
@@ -175,18 +184,20 @@ async def movie_info(ctx, *, movie_name):
         if movie_data['poster'] and movie_data['poster'] != 'N/A':
             embed.set_image(url=movie_data['poster'])
         embed.set_footer(text=f"IMDb ID: {movie_data['imdb_id']}")
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
     else:
-        await ctx.send(f'❌ Movie "{movie_name}" not found on IMDb!')
+        await interaction.followup.send(f'❌ Movie "{movie_name}" not found on IMDb!')
 
-@bot.command(name='random_movie', help='Pick a random movie from your want to watch list')
-@commands.check(is_allowed_channel)
-async def random_movie(ctx):
+@bot.tree.command(name='random_movie', description='Pick a random movie from your want to watch list')
+@app_commands.check(is_allowed_channel)
+async def random_movie(interaction: discord.Interaction):
     """Pick a random movie from the want to watch list"""
+    await interaction.response.defer()
+    
     movies = load_movies()
     
     if not movies['want_to_watch']:
-        await ctx.send('📋 Your want to watch list is empty! Add some movies first.')
+        await interaction.followup.send('📋 Your want to watch list is empty! Add some movies first.')
         return
     
     # Pick a random movie
@@ -210,14 +221,17 @@ async def random_movie(ctx):
         if movie_info['poster'] and movie_info['poster'] != 'N/A':
             embed.set_thumbnail(url=movie_info['poster'])
         embed.set_footer(text=f"Can't decide? Let me help! 🎬")
-        await ctx.send(embed=embed)
+        await interaction.followup.send(embed=embed)
     else:
-        await ctx.send(f'🎲 Random Pick: **{chosen_movie}**\n*(IMDb data not available for this movie)*')
+        await interaction.followup.send(f'🎲 Random Pick: **{chosen_movie}**\n*(IMDb data not available for this movie)*')
 
-@bot.command(name='remove_movie', help='Remove a movie: !remove_movie [watched|want] <movie_name>')
-@commands.check(is_allowed_channel)
-async def remove_movie(ctx, list_type: str = None, *, movie_name):
+@bot.tree.command(name='remove_movie', description='Remove a movie from your lists')
+@app_commands.check(is_allowed_channel)
+async def remove_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
     """Remove a movie from a specific list or auto-detect"""
+    if list_type:
+        list_type = list_type.lower()
+    
     movies = load_movies()
     
     if list_type is None:
@@ -225,65 +239,64 @@ async def remove_movie(ctx, list_type: str = None, *, movie_name):
         if movie_name in movies['watched']:
             movies['watched'].remove(movie_name)
             save_movies(movies)
-            await ctx.send(f'🗑️ Removed "{movie_name}" from watched list!')
+            await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from watched list!')
         elif movie_name in movies['want_to_watch']:
             movies['want_to_watch'].remove(movie_name)
             save_movies(movies)
-            await ctx.send(f'🗑️ Removed "{movie_name}" from want to watch list!')
+            await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from want to watch list!')
         else:
-            await ctx.send(f'❌ "{movie_name}" not found in any list!')
+            await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
     else:
-        list_type = list_type.lower()
         if list_type in ['watched', 'w']:
             if movie_name in movies['watched']:
                 movies['watched'].remove(movie_name)
                 save_movies(movies)
-                await ctx.send(f'🗑️ Removed "{movie_name}" from watched list!')
+                await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from watched list!')
             else:
-                await ctx.send(f'❌ "{movie_name}" not in watched list!')
+                await interaction.response.send_message(f'❌ "{movie_name}" not in watched list!')
         elif list_type in ['want', 'w2w', 'want_to_watch']:
             if movie_name in movies['want_to_watch']:
                 movies['want_to_watch'].remove(movie_name)
                 save_movies(movies)
-                await ctx.send(f'🗑️ Removed "{movie_name}" from want to watch list!')
+                await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from want to watch list!')
             else:
-                await ctx.send(f'❌ "{movie_name}" not in want to watch list!')
+                await interaction.response.send_message(f'❌ "{movie_name}" not in want to watch list!')
         else:
-            await ctx.send('❌ Use `watched` or `want` to specify the list!')
+            await interaction.response.send_message('❌ Use `watched` or `want` to specify the list!')
 
-@bot.command(name='watched', help='Show all watched movies')
-@commands.check(is_allowed_channel)
-async def watched(ctx):
+@bot.tree.command(name='watched', description='Show all watched movies')
+@app_commands.check(is_allowed_channel)
+async def watched(interaction: discord.Interaction):
     """Show all watched movies"""
     movies = load_movies()
     
     if not movies['watched']:
-        await ctx.send('📽️ No movies watched yet!')
+        await interaction.response.send_message('📽️ No movies watched yet!')
         return
     
     movie_list = '\n'.join([f"✅ {movie}" for movie in sorted(movies['watched'])])
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
     embed.set_footer(text=f"Total: {len(movies['watched'])} movies")
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
-@bot.command(name='want_to_watch', help='Show all movies in want to watch list')
-@commands.check(is_allowed_channel)
-async def want_to_watch(ctx):
+@bot.tree.command(name='want_to_watch', description='Show all movies in want to watch list')
+@app_commands.check(is_allowed_channel)
+async def want_to_watch(interaction: discord.Interaction):
     """Show all movies in want to watch list"""
     movies = load_movies()
     
     if not movies['want_to_watch']:
-        await ctx.send('📋 Want to watch list is empty!')
+        await interaction.response.send_message('📋 Want to watch list is empty!')
         return
     
     movie_list = '\n'.join([f"📝 {movie}" for movie in sorted(movies['want_to_watch'])])
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
     embed.set_footer(text=f"Total: {len(movies['want_to_watch'])} movies")
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
-@bot.command(name='all_movies', help='Show all movies in both lists')
-@commands.check(is_allowed_channel)
-async def all_movies(ctx):
+@bot.tree.command(name='all_movies', description='Show all movies in both lists')
+@app_commands.check(is_allowed_channel)
+async def all_movies(interaction: discord.Interaction):
     """Show all movies in both lists"""
     movies = load_movies()
     
@@ -304,66 +317,65 @@ async def all_movies(ctx):
         embed.description = "No movies added yet!"
     
     embed.set_footer(text=f"Watched: {watched_count} | Want to Watch: {want_count}")
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
-@bot.command(name='clear_all', help='Clear all movies (use with caution!')
-@commands.check(is_allowed_channel)
-async def clear_all(ctx):
+class ConfirmView(discord.ui.View):
+    def __init__(self):
+        super().__init__()
+        self.confirmed = None
+    
+    @discord.ui.button(label='✅ Confirm', style=discord.ButtonStyle.danger)
+    async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = True
+        save_movies({'watched': [], 'want_to_watch': []})
+        await interaction.response.send_message('🗑️ All movies cleared!')
+        self.stop()
+    
+    @discord.ui.button(label='❌ Cancel', style=discord.ButtonStyle.secondary)
+    async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.confirmed = False
+        await interaction.response.send_message('❌ Cancelled!')
+        self.stop()
+
+@bot.tree.command(name='clear_all', description='Clear all movies (requires confirmation)')
+@app_commands.check(is_allowed_channel)
+async def clear_all(interaction: discord.Interaction):
     """Clear all movies - requires confirmation"""
-    def check(reaction, user):
-        return user == ctx.author and reaction.emoji in ['✅', '❌']
-    
-    confirm = await ctx.send("⚠️ Are you sure you want to clear all movies? React with ✅ to confirm or ❌ to cancel")
-    await confirm.add_reaction('✅')
-    await confirm.add_reaction('❌')
-    
-    try:
-        reaction, user = await bot.wait_for('reaction_add', timeout=30, check=check)
-        
-        if reaction.emoji == '✅':
-            save_movies({'watched': [], 'want_to_watch': []})
-            await ctx.send('🗑️ All movies cleared!')
-        else:
-            await ctx.send('❌ Cancelled!')
-    except:
-        await ctx.send('⏰ Action timed out!')
+    view = ConfirmView()
+    await interaction.response.send_message('⚠️ Are you sure you want to clear all movies?', view=view)
 
-@bot.command(name='commands', help='Show available commands')
-@commands.check(is_allowed_channel)
-async def help_command(ctx):
+@bot.tree.command(name='help', description='Show available commands')
+@app_commands.check(is_allowed_channel)
+async def help_command(interaction: discord.Interaction):
     """Show help message"""
     embed = discord.Embed(title="🎬 Movie Tracker Bot - Commands", color=discord.Color.gold())
     
     commands_list = [
-        ("!add_watched <movie>", "Add a movie to watched list"),
-        ("!add_want <movie>", "Add a movie to want to watch list"),
-        ("!movie_info <movie>", "Get IMDb info about a movie"),
-        ("!random_movie", "Pick a random movie from want to watch list"),
-        ("!remove_movie <movie>", "Remove a movie from any list"),
-        ("!watched", "Show all watched movies"),
-        ("!want_to_watch", "Show all movies in want to watch list"),
-        ("!all_movies", "Show all movies in both lists"),
-        ("!clear_all", "Clear all movies (requires confirmation)"),
-        ("!commands", "Show this help message"),
+        ("/add_watched <movie>", "Add a movie to watched list"),
+        ("/add_want <movie>", "Add a movie to want to watch list"),
+        ("/movie_info <movie>", "Get IMDb info about a movie"),
+        ("/random_movie", "Pick a random movie from want to watch list"),
+        ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
+        ("/watched", "Show all watched movies"),
+        ("/want_to_watch", "Show all movies in want to watch list"),
+        ("/all_movies", "Show all movies in both lists"),
+        ("/clear_all", "Clear all movies (requires confirmation)"),
+        ("/help", "Show this help message"),
     ]
     
     for command, description in commands_list:
         embed.add_field(name=command, value=description, inline=False)
     
-    await ctx.send(embed=embed)
+    await interaction.response.send_message(embed=embed)
 
-# Error handler
-@bot.event
-async def on_command_error(ctx, error):
-    """Handle command errors"""
-    if isinstance(error, commands.CheckFailure):
-        await ctx.send('❌ movie-tracker-bot commands only work in movie-tracker-bot text channel')
-    elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f'❌ Missing argument! Use !commands for command syntax.')
-    elif isinstance(error, commands.CommandNotFound):
-        await ctx.send(f'❌ Command not found! Use !commands to see available commands.')
+# Error handler for app commands
+@bot.tree.error
+async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
+    """Handle app command errors"""
+    if isinstance(error, app_commands.CheckFailure):
+        await interaction.response.send_message('❌ movie-tracker-bot commands only work in movie-tracker-bot text channel', ephemeral=True)
     else:
-        await ctx.send(f'❌ An error occurred: {error}')
+        await interaction.response.send_message(f'❌ An error occurred: {error}', ephemeral=True)
 
 # Run the bot
 if __name__ == '__main__':
