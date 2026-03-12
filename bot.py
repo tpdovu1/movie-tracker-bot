@@ -214,27 +214,42 @@ async def random_movie(ctx):
     else:
         await ctx.send(f'🎲 Random Pick: **{chosen_movie}**\n*(IMDb data not available for this movie)*')
 
-@bot.command(name='remove_movie', help='Remove a movie from any list: !remove_movie <movie_name>')
+@bot.command(name='remove_movie', help='Remove a movie: !remove_movie [watched|want] <movie_name>')
 @commands.check(is_allowed_channel)
-async def remove_movie(ctx, *, movie_name):
-    """Remove a movie from either list"""
+async def remove_movie(ctx, list_type: str = None, *, movie_name):
+    """Remove a movie from a specific list or auto-detect"""
     movies = load_movies()
-    removed = False
     
-    if movie_name in movies['watched']:
-        movies['watched'].remove(movie_name)
-        removed = True
-        location = 'watched'
-    elif movie_name in movies['want_to_watch']:
-        movies['want_to_watch'].remove(movie_name)
-        removed = True
-        location = 'want to watch'
-    
-    if removed:
-        save_movies(movies)
-        await ctx.send(f'🗑️ Removed "{movie_name}" from {location} list!')
+    if list_type is None:
+        # Auto-detect which list to remove from
+        if movie_name in movies['watched']:
+            movies['watched'].remove(movie_name)
+            save_movies(movies)
+            await ctx.send(f'🗑️ Removed "{movie_name}" from watched list!')
+        elif movie_name in movies['want_to_watch']:
+            movies['want_to_watch'].remove(movie_name)
+            save_movies(movies)
+            await ctx.send(f'🗑️ Removed "{movie_name}" from want to watch list!')
+        else:
+            await ctx.send(f'❌ "{movie_name}" not found in any list!')
     else:
-        await ctx.send(f'❌ "{movie_name}" not found in any list!')
+        list_type = list_type.lower()
+        if list_type in ['watched', 'w']:
+            if movie_name in movies['watched']:
+                movies['watched'].remove(movie_name)
+                save_movies(movies)
+                await ctx.send(f'🗑️ Removed "{movie_name}" from watched list!')
+            else:
+                await ctx.send(f'❌ "{movie_name}" not in watched list!')
+        elif list_type in ['want', 'w2w', 'want_to_watch']:
+            if movie_name in movies['want_to_watch']:
+                movies['want_to_watch'].remove(movie_name)
+                save_movies(movies)
+                await ctx.send(f'🗑️ Removed "{movie_name}" from want to watch list!')
+            else:
+                await ctx.send(f'❌ "{movie_name}" not in want to watch list!')
+        else:
+            await ctx.send('❌ Use `watched` or `want` to specify the list!')
 
 @bot.command(name='watched', help='Show all watched movies')
 @commands.check(is_allowed_channel)
