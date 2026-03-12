@@ -1,0 +1,4 @@
+I want to create a discord chat bot that will be used to manage the movies that I'm wathcing wtih my friends. 
+features will include an already watched list, want to watch list, adding and removing to the various lists, and 
+anything else you think will be useful for a bot like this. Create it for me and give me instructions if you
+need me to do something
