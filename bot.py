@@ -17,8 +17,8 @@ intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='/', intents=intents)
 
-# Database file
-DB_FILE = 'movies.json'
+# Database file - use persistent volume path on Railway, local path otherwise
+DB_FILE = os.getenv('MOVIES_DATA_PATH', 'movies.json')
 
 # Channel ID where bot will respond (set to None to allow all channels)
 ALLOWED_CHANNEL_ID = 1481502489625886923  # Replace with your channel ID, e.g., 1234567890
