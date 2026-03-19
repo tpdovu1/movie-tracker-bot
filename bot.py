@@ -3,6 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 import json
 import os
+import re
 from dotenv import load_dotenv
 import requests
 import random
@@ -33,12 +34,17 @@ async def get_movie_info(movie_name):
     """Fetch movie info from OMDb API"""
     if not OMDB_API_KEY:
         return None
-    
+
+    # Check if input is a URL and extract movie info
+    movie_info = await extract_from_url(movie_name)
+    if movie_info:
+        return movie_info
+
     try:
         url = f"http://www.omdbapi.com/?t={movie_name}&apikey={OMDB_API_KEY}"
         response = requests.get(url, timeout=5)
         data = response.json()
-        
+
         if data.get('Response') == 'True':
             return {
                 'title': data.get('Title'),
@@ -52,8 +58,47 @@ async def get_movie_info(movie_name):
             }
     except Exception as e:
         print(f"Error fetching movie data: {e}")
-    
+
     return None
+
+
+async def extract_from_url(input_str):
+    """Extract movie info from IMDb or other URLs"""
+    if not OMDB_API_KEY or not input_str:
+        return None
+
+    # IMDb URL patterns
+    imdb_pattern = r'(?:https?://)?(?:www\.)?imdb\.com/title/([a-zA-Z0-9]+)/?'
+    match = re.search(imdb_pattern, input_str, re.IGNORECASE)
+
+    if match:
+        imdb_id = match.group(1)
+        try:
+            url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}"
+            response = requests.get(url, timeout=5)
+            data = response.json()
+
+            if data.get('Response') == 'True':
+                return {
+                    'title': data.get('Title'),
+                    'year': data.get('Year'),
+                    'rating': data.get('imdbRating'),
+                    'plot': data.get('Plot'),
+                    'genre': data.get('Genre'),
+                    'director': data.get('Director'),
+                    'poster': data.get('Poster'),
+                    'imdb_id': data.get('imdbID')
+                }
+        except Exception as e:
+            print(f"Error extracting from URL: {e}")
+
+    return None
+
+
+def is_url(input_str):
+    """Check if input string is a URL"""
+    url_pattern = r'https?://'
+    return bool(re.search(url_pattern, input_str, re.IGNORECASE))
 
 def load_movies():
     """Load movies from JSON file"""
@@ -80,23 +125,26 @@ async def on_ready():
 async def add_watched(interaction: discord.Interaction, movie_name: str):
     """Add a movie to the watched list"""
     await interaction.response.defer()
-    
+
     movies = load_movies()
-    
-    if movie_name in movies['watched']:
-        await interaction.followup.send(f'"{movie_name}" is already in your watched list!')
-        return
-    
-    # Remove from want_to_watch if it's there
-    if movie_name in movies['want_to_watch']:
-        movies['want_to_watch'].remove(movie_name)
-    
-    movies['watched'].append(movie_name)
-    save_movies(movies)
-    
-    # Fetch IMDb data
+
+    # Fetch IMDb data (handles URL extraction automatically)
     movie_info = await get_movie_info(movie_name)
-    
+
+    # Determine actual name to store
+    actual_name = movie_info['title'] if movie_info else movie_name
+
+    if actual_name in movies['watched']:
+        await interaction.followup.send(f'"{actual_name}" is already in your watched list!')
+        return
+
+    # Remove from want_to_watch if it's there
+    if actual_name in movies['want_to_watch']:
+        movies['want_to_watch'].remove(actual_name)
+
+    movies['watched'].append(actual_name)
+    save_movies(movies)
+
     if movie_info:
         embed = discord.Embed(title=f"✅ {movie_info['title']}", color=discord.Color.green())
         if movie_info['year']:
@@ -114,30 +162,33 @@ async def add_watched(interaction: discord.Interaction, movie_name: str):
         embed.description = "Added to watched list!"
         await interaction.followup.send(embed=embed)
     else:
-        await interaction.followup.send(f'✅ Added "{movie_name}" to watched list!')
+        await interaction.followup.send(f'✅ Added "{actual_name}" to watched list!')
 
 @bot.tree.command(name='add_want', description='Add a movie to want to watch list')
 @app_commands.check(is_allowed_channel)
 async def add_want(interaction: discord.Interaction, movie_name: str):
     """Add a movie to the want to watch list"""
     await interaction.response.defer()
-    
+
     movies = load_movies()
-    
-    if movie_name in movies['want_to_watch']:
-        await interaction.followup.send(f'"{movie_name}" is already in your want to watch list!')
-        return
-    
-    # Remove from watched if it's there
-    if movie_name in movies['watched']:
-        movies['watched'].remove(movie_name)
-    
-    movies['want_to_watch'].append(movie_name)
-    save_movies(movies)
-    
-    # Fetch IMDb data
+
+    # Fetch IMDb data (handles URL extraction automatically)
     movie_info = await get_movie_info(movie_name)
-    
+
+    # Determine actual name to store
+    actual_name = movie_info['title'] if movie_info else movie_name
+
+    if actual_name in movies['want_to_watch']:
+        await interaction.followup.send(f'"{actual_name}" is already in your want to watch list!')
+        return
+
+    # Remove from watched if it's there
+    if actual_name in movies['watched']:
+        movies['watched'].remove(actual_name)
+
+    movies['want_to_watch'].append(actual_name)
+    save_movies(movies)
+
     if movie_info:
         embed = discord.Embed(title=f"📝 {movie_info['title']}", color=discord.Color.blue())
         if movie_info['year']:
@@ -155,7 +206,7 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
         embed.description = "Added to want to watch list!"
         await interaction.followup.send(embed=embed)
     else:
-        await interaction.followup.send(f'📝 Added "{movie_name}" to want to watch list!')
+        await interaction.followup.send(f'📝 Added "{actual_name}" to want to watch list!')
 
 @bot.tree.command(name='movie_info', description='Get IMDb info about a movie')
 @app_commands.check(is_allowed_channel)
