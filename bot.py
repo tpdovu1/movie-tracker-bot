@@ -475,7 +475,7 @@ async def help_command(interaction: discord.Interaction):
         ("/watched", "Show all watched movies"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/all_movies", "Show all movies in both lists"),
-        ("/sync_imdb", "Update IMDb IDs for all movies"),
+        ("/refresh_imdb", "Update IMDb IDs for all movies"),
         ("/clear_all", "Clear all movies (requires confirmation)"),
         ("/help", "Show this help message"),
     ]
@@ -485,9 +485,9 @@ async def help_command(interaction: discord.Interaction):
 
     await interaction.response.send_message(embed=embed)
 
-@bot.tree.command(name='sync_imdb', description='Update IMDb IDs for all movies')
+@bot.tree.command(name='refresh_imdb', description='Update IMDb IDs for all movies')
 @app_commands.check(is_allowed_channel)
-async def sync_imdb(interaction: discord.Interaction):
+async def refresh_imdb(interaction: discord.Interaction):
     """Update IMDb IDs for all movies in the database"""
     await interaction.response.defer()
 
