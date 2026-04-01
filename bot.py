@@ -104,7 +104,20 @@ def load_movies():
     """Load movies from JSON file"""
     if os.path.exists(DB_FILE):
         with open(DB_FILE, 'r') as f:
-            return json.load(f)
+            data = json.load(f)
+            # Convert old format (just list) to new format (dict with imdb_id)
+            converted = {'watched': [], 'want_to_watch': []}
+            for movie in data.get('watched', []):
+                if isinstance(movie, dict):
+                    converted['watched'].append(movie)
+                else:
+                    converted['watched'].append({'title': movie, 'imdb_id': None})
+            for movie in data.get('want_to_watch', []):
+                if isinstance(movie, dict):
+                    converted['want_to_watch'].append(movie)
+                else:
+                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None})
+            return converted
     return {'watched': [], 'want_to_watch': []}
 
 def save_movies(data):
@@ -134,15 +147,18 @@ async def add_watched(interaction: discord.Interaction, movie_name: str):
     # Determine actual name to store
     actual_name = movie_info['title'] if movie_info else movie_name
 
-    if actual_name in movies['watched']:
+    # Check if movie already in watched (handle both dict and string formats)
+    watched_titles = [m.get('title') if isinstance(m, dict) else m for m in movies['watched']]
+    if actual_name in watched_titles:
         await interaction.followup.send(f'"{actual_name}" is already in your watched list!')
         return
 
     # Remove from want_to_watch if it's there
-    if actual_name in movies['want_to_watch']:
-        movies['want_to_watch'].remove(actual_name)
+    movies['want_to_watch'] = [m for m in movies['want_to_watch'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    movies['watched'].append(actual_name)
+    # Add movie with IMDb ID
+    imdb_id = movie_info.get('imdb_id') if movie_info else None
+    movies['watched'].append({'title': actual_name, 'imdb_id': imdb_id})
     save_movies(movies)
 
     if movie_info:
@@ -178,15 +194,18 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
     # Determine actual name to store
     actual_name = movie_info['title'] if movie_info else movie_name
 
-    if actual_name in movies['want_to_watch']:
+    # Check if movie already in want_to_watch (handle both dict and string formats)
+    want_titles = [m.get('title') if isinstance(m, dict) else m for m in movies['want_to_watch']]
+    if actual_name in want_titles:
         await interaction.followup.send(f'"{actual_name}" is already in your want to watch list!')
         return
 
     # Remove from watched if it's there
-    if actual_name in movies['watched']:
-        movies['watched'].remove(actual_name)
+    movies['watched'] = [m for m in movies['watched'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    movies['want_to_watch'].append(actual_name)
+    # Add movie with IMDb ID
+    imdb_id = movie_info.get('imdb_id') if movie_info else None
+    movies['want_to_watch'].append({'title': actual_name, 'imdb_id': imdb_id})
     save_movies(movies)
 
     if movie_info:
@@ -213,13 +232,13 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
 async def movie_info(interaction: discord.Interaction, movie_name: str):
     """Get IMDb information about a movie"""
     await interaction.response.defer()
-    
+
     if not OMDB_API_KEY:
         await interaction.followup.send('❌ IMDb API key not configured!')
         return
-    
+
     movie_data = await get_movie_info(movie_name)
-    
+
     if movie_data:
         embed = discord.Embed(title=movie_data['title'], color=discord.Color.gold())
         if movie_data['year']:
@@ -244,19 +263,20 @@ async def movie_info(interaction: discord.Interaction, movie_name: str):
 async def random_movie(interaction: discord.Interaction):
     """Pick a random movie from the want to watch list"""
     await interaction.response.defer()
-    
+
     movies = load_movies()
-    
+
     if not movies['want_to_watch']:
         await interaction.followup.send('📋 Your want to watch list is empty! Add some movies first.')
         return
-    
-    # Pick a random movie
-    chosen_movie = random.choice(movies['want_to_watch'])
-    
+
+    # Pick a random movie (handle both dict and string formats)
+    movie = random.choice(movies['want_to_watch'])
+    chosen_movie = movie.get('title') if isinstance(movie, dict) else movie
+
     # Fetch IMDb data
     movie_info = await get_movie_info(chosen_movie)
-    
+
     if movie_info:
         embed = discord.Embed(title=f"🎲 Random Pick: {movie_info['title']}", color=discord.Color.gold())
         if movie_info['year']:
@@ -282,32 +302,41 @@ async def remove_movie(interaction: discord.Interaction, movie_name: str, list_t
     """Remove a movie from a specific list or auto-detect"""
     if list_type:
         list_type = list_type.lower()
-    
+
     movies = load_movies()
-    
+
+    # Helper function to get title from movie (handles both dict and string)
+    def get_title(movie):
+        return movie.get('title') if isinstance(movie, dict) else movie
+
     if list_type is None:
         # Auto-detect which list to remove from
-        if movie_name in movies['watched']:
-            movies['watched'].remove(movie_name)
+        watched_titles = [get_title(m) for m in movies['watched']]
+        want_titles = [get_title(m) for m in movies['want_to_watch']]
+
+        if movie_name in watched_titles:
+            movies['watched'] = [m for m in movies['watched'] if get_title(m) != movie_name]
             save_movies(movies)
             await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from watched list!')
-        elif movie_name in movies['want_to_watch']:
-            movies['want_to_watch'].remove(movie_name)
+        elif movie_name in want_titles:
+            movies['want_to_watch'] = [m for m in movies['want_to_watch'] if get_title(m) != movie_name]
             save_movies(movies)
             await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from want to watch list!')
         else:
             await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
     else:
         if list_type in ['watched', 'w']:
-            if movie_name in movies['watched']:
-                movies['watched'].remove(movie_name)
+            watched_titles = [get_title(m) for m in movies['watched']]
+            if movie_name in watched_titles:
+                movies['watched'] = [m for m in movies['watched'] if get_title(m) != movie_name]
                 save_movies(movies)
                 await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from watched list!')
             else:
                 await interaction.response.send_message(f'❌ "{movie_name}" not in watched list!')
         elif list_type in ['want', 'w2w', 'want_to_watch']:
-            if movie_name in movies['want_to_watch']:
-                movies['want_to_watch'].remove(movie_name)
+            want_titles = [get_title(m) for m in movies['want_to_watch']]
+            if movie_name in want_titles:
+                movies['want_to_watch'] = [m for m in movies['want_to_watch'] if get_title(m) != movie_name]
                 save_movies(movies)
                 await interaction.response.send_message(f'🗑️ Removed "{movie_name}" from want to watch list!')
             else:
@@ -320,12 +349,22 @@ async def remove_movie(interaction: discord.Interaction, movie_name: str, list_t
 async def watched(interaction: discord.Interaction):
     """Show all watched movies"""
     movies = load_movies()
-    
+
     if not movies['watched']:
         await interaction.response.send_message('📽️ No movies watched yet!')
         return
-    
-    movie_list = '\n'.join([f"✅ {movie}" for movie in sorted(movies['watched'])])
+
+    # Build movie list with IMDb links
+    movie_lines = []
+    for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+        title = movie.get('title') if isinstance(movie, dict) else movie
+        imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+        if imdb_id:
+            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
+        else:
+            movie_lines.append(f"✅ {title}")
+
+    movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
     embed.set_footer(text=f"Total: {len(movies['watched'])} movies")
     await interaction.response.send_message(embed=embed)
@@ -335,12 +374,22 @@ async def watched(interaction: discord.Interaction):
 async def want_to_watch(interaction: discord.Interaction):
     """Show all movies in want to watch list"""
     movies = load_movies()
-    
+
     if not movies['want_to_watch']:
         await interaction.response.send_message('📋 Want to watch list is empty!')
         return
-    
-    movie_list = '\n'.join([f"📝 {movie}" for movie in sorted(movies['want_to_watch'])])
+
+    # Build movie list with IMDb links
+    movie_lines = []
+    for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+        title = movie.get('title') if isinstance(movie, dict) else movie
+        imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+        if imdb_id:
+            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
+        else:
+            movie_lines.append(f"📝 {title}")
+
+    movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
     embed.set_footer(text=f"Total: {len(movies['want_to_watch'])} movies")
     await interaction.response.send_message(embed=embed)
@@ -350,23 +399,39 @@ async def want_to_watch(interaction: discord.Interaction):
 async def all_movies(interaction: discord.Interaction):
     """Show all movies in both lists"""
     movies = load_movies()
-    
+
     watched_count = len(movies['watched'])
     want_count = len(movies['want_to_watch'])
-    
+
     embed = discord.Embed(title="🎬 Movie Collection", color=discord.Color.purple())
-    
+
     if movies['watched']:
-        watched_list = '\n'.join([f"✅ {movie}" for movie in sorted(movies['watched'])])
+        movie_lines = []
+        for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+            title = movie.get('title') if isinstance(movie, dict) else movie
+            imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+            if imdb_id:
+                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
+            else:
+                movie_lines.append(f"✅ {title}")
+        watched_list = '\n'.join(movie_lines)
         embed.add_field(name="Watched 🎥", value=watched_list, inline=False)
-    
+
     if movies['want_to_watch']:
-        want_list = '\n'.join([f"📝 {movie}" for movie in sorted(movies['want_to_watch'])])
+        movie_lines = []
+        for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+            title = movie.get('title') if isinstance(movie, dict) else movie
+            imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+            if imdb_id:
+                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
+            else:
+                movie_lines.append(f"📝 {title}")
+        want_list = '\n'.join(movie_lines)
         embed.add_field(name="Want to Watch 📋", value=want_list, inline=False)
-    
+
     if not movies['watched'] and not movies['want_to_watch']:
         embed.description = "No movies added yet!"
-    
+
     embed.set_footer(text=f"Watched: {watched_count} | Want to Watch: {want_count}")
     await interaction.response.send_message(embed=embed)
 
@@ -374,14 +439,14 @@ class ConfirmView(discord.ui.View):
     def __init__(self):
         super().__init__()
         self.confirmed = None
-    
+
     @discord.ui.button(label='✅ Confirm', style=discord.ButtonStyle.danger)
     async def confirm_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.confirmed = True
         save_movies({'watched': [], 'want_to_watch': []})
         await interaction.response.send_message('🗑️ All movies cleared!')
         self.stop()
-    
+
     @discord.ui.button(label='❌ Cancel', style=discord.ButtonStyle.secondary)
     async def cancel_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.confirmed = False
@@ -400,7 +465,7 @@ async def clear_all(interaction: discord.Interaction):
 async def help_command(interaction: discord.Interaction):
     """Show help message"""
     embed = discord.Embed(title="🎬 Movie Tracker Bot - Commands", color=discord.Color.gold())
-    
+
     commands_list = [
         ("/add_watched <movie>", "Add a movie to watched list"),
         ("/add_want <movie>", "Add a movie to want to watch list"),
@@ -413,10 +478,10 @@ async def help_command(interaction: discord.Interaction):
         ("/clear_all", "Clear all movies (requires confirmation)"),
         ("/help", "Show this help message"),
     ]
-    
+
     for command, description in commands_list:
         embed.add_field(name=command, value=description, inline=False)
-    
+
     await interaction.response.send_message(embed=embed)
 
 # Error handler for app commands
