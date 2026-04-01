@@ -130,11 +130,11 @@ async def on_ready():
     """Called when bot is ready"""
     print('Syncing slash commands...')
     try:
-        await bot.tree.sync()
-        print(f'{bot.user} has connected to Discord!')
+        synced = await bot.tree.sync()
+        print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
     except Exception as e:
         print(f'Sync error: {e}')
-        print(f'{bot.user} has connected to Discord!')
+    print(f'{bot.user} has connected to Discord!')
     print('------')
 
 @bot.tree.command(name='add_watched', description='Add a movie to watched list')
