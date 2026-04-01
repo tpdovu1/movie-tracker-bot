@@ -128,6 +128,13 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
+    print('Clearing existing slash commands...')
+    try:
+        bot.tree.clear_commands(guild=None)
+        print('Cleared global commands')
+    except Exception as e:
+        print(f'Clear error: {e}')
+
     print('Syncing slash commands...')
     try:
         synced = await bot.tree.sync()
