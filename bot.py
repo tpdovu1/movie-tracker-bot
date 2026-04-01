@@ -128,22 +128,13 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
-    print('Clearing existing slash commands...')
-    try:
-        bot.tree.clear_commands(guild=None)
-        print('Cleared global commands')
-    except Exception as e:
-        print(f'Clear error: {e}')
-
     print('Syncing slash commands...')
     try:
-        synced = await bot.tree.sync()
-        print(f'Synced {len(synced)} commands')
-        for cmd in synced:
-            print(f'  - {cmd.name}')
+        await bot.tree.sync()
+        print(f'{bot.user} has connected to Discord!')
     except Exception as e:
         print(f'Sync error: {e}')
-    print(f'{bot.user} has connected to Discord!')
+        print(f'{bot.user} has connected to Discord!')
     print('------')
 
 @bot.tree.command(name='add_watched', description='Add a movie to watched list')
