@@ -545,12 +545,16 @@ async def clear_all(interaction: discord.Interaction):
 @bot.tree.command(name='claim_movie', description='Claim a movie as added by you')
 @app_commands.check(is_allowed_channel)
 @app_commands.check(is_admin)
-async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
-    """Claim a movie as added by you (for old movies without user info)"""
+async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None, claimed_by: discord.User = None):
+    """Claim a movie as added by a specific user"""
     movies = load_movies()
 
     def get_title(movie):
         return movie.get('title') if isinstance(movie, dict) else movie
+
+    # Determine who to claim as
+    claim_username = claimed_by.name if claimed_by else interaction.user.name
+    claim_id = str(claimed_by.id) if claimed_by else str(interaction.user.id)
 
     # Search in specified list or both
     found = False
@@ -558,22 +562,22 @@ async def claim_movie(interaction: discord.Interaction, movie_name: str, list_ty
     if list_type in ['watched', 'w'] or list_type is None:
         for movie in movies['watched']:
             if get_title(movie).lower() == movie_name.lower():
-                movie['added_by'] = str(interaction.user.id)
-                movie['added_username'] = interaction.user.name
+                movie['added_by'] = claim_id
+                movie['added_username'] = claim_username
                 found = True
                 break
 
     if not found and (list_type in ['want', 'w2w', 'want_to_watch'] or list_type is None):
         for movie in movies['want_to_watch']:
             if get_title(movie).lower() == movie_name.lower():
-                movie['added_by'] = str(interaction.user.id)
-                movie['added_username'] = interaction.user.name
+                movie['added_by'] = claim_id
+                movie['added_username'] = claim_username
                 found = True
                 break
 
     if found:
         save_movies(movies)
-        await interaction.response.send_message(f'✅ Claimed "{movie_name}" as added by **{interaction.user.name}**!')
+        await interaction.response.send_message(f'✅ Claimed "{movie_name}" as added by **{claim_username}**!')
     else:
         await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
 
@@ -601,7 +605,7 @@ async def help_command(interaction: discord.Interaction):
 
     # Admin commands
     admin_commands = [
-        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
+        ("/claim_movie <movie> [list] [claimed_by]", "Claim ownership of a movie"),
         ("/clear_all", "Clear all movies (requires confirmation)"),
         ("/refresh_imdb", "Update IMDb IDs for all movies"),
     ]
