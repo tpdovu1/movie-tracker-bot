@@ -343,16 +343,23 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
 @bot.tree.command(name='rate', description='Rate a movie (0-5 stars)')
 @app_commands.check(is_allowed_channel)
 @app_commands.autocomplete(movie_name=movie_name_autocomplete)
-@app_commands.describe(rating="Rating from 0 to 5 (decimals allowed)")
-async def rate(interaction: discord.Interaction, movie_name: str, rating: float):
-    """Rate a movie from 0 to 5 stars"""
-    # Validate rating
-    if rating < 0 or rating > 5:
-        await interaction.response.send_message('❌ Rating must be between 0 and 5!')
+@app_commands.describe(rating="Rating from 0 to 5 (decimals allowed, 0 to remove)")
+async def rate(interaction: discord.Interaction, movie_name: str, rating: float = None, user: discord.User = None):
+    """Rate a movie from 0 to 5 stars (0 removes your rating)"""
+    # If user is specified, only admins can use it
+    if user and not is_admin(interaction):
+        await interaction.response.send_message('❌ Only admins can remove other users\' ratings!')
         return
 
     movies = load_movies()
-    user_id = str(interaction.user.id)
+
+    # Determine whose rating to modify
+    if user:
+        target_id = str(user.id)
+        target_name = user.name
+    else:
+        target_id = str(interaction.user.id)
+        target_name = interaction.user.name
 
     def get_title(movie):
         return movie.get('title') if isinstance(movie, dict) else movie
@@ -364,7 +371,14 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float)
         if get_title(movie).lower() == movie_name.lower():
             if 'ratings' not in movie:
                 movie['ratings'] = {}
-            movie['ratings'][user_id] = rating
+
+            if rating == 0 or rating is None:
+                # Remove rating
+                if target_id in movie['ratings']:
+                    del movie['ratings'][target_id]
+            else:
+                movie['ratings'][target_id] = rating
+
             found = True
             break
 
@@ -373,17 +387,28 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float)
             if get_title(movie).lower() == movie_name.lower():
                 if 'ratings' not in movie:
                     movie['ratings'] = {}
-                movie['ratings'][user_id] = rating
+
+                if rating == 0 or rating is None:
+                    if target_id in movie['ratings']:
+                        del movie['ratings'][target_id]
+                else:
+                    movie['ratings'][target_id] = rating
+
                 found = True
                 break
 
     if found:
         save_movies(movies)
-        # Calculate average
-        ratings = movie.get('ratings', {})
-        avg = sum(ratings.values()) / len(ratings) if ratings else 0
-        stars = get_star_display(avg)
-        await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! {stars} (avg: {avg:.1f})')
+
+        # Handle removal case
+        if rating == 0 or rating is None:
+            await interaction.response.send_message(f'✅ Removed **{target_name}**\'s rating from **{movie_name}**!')
+        else:
+            # Calculate average
+            ratings = movie.get('ratings', {})
+            avg = sum(ratings.values()) / len(ratings) if ratings else 0
+            stars = get_star_display(avg)
+            await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! {stars} (avg: {avg:.1f})')
     else:
         await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
 
@@ -728,7 +753,7 @@ async def help_command(interaction: discord.Interaction):
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/my_ratings", "Show movies you have rated"),
         ("/random_movie", "Pick a random movie from want to watch list"),
-        ("/rate <movie> <rating>", "Rate a movie (0-5 stars)"),
+        ("/rate <movie> [rating] [user]", "Rate a movie (0-5, 0 to remove, admin can target user)"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/watched", "Show all watched movies"),
