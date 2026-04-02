@@ -608,18 +608,30 @@ async def want_to_watch(interaction: discord.Interaction):
 
 @bot.tree.command(name='all_movies', description='Show all movies in both lists')
 @app_commands.check(is_allowed_channel)
-async def all_movies(interaction: discord.Interaction):
+@app_commands.describe(sort_by="Sort by alphabetical or rating")
+async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
     """Show all movies in both lists"""
     movies = load_movies()
 
     watched_count = len(movies['watched'])
     want_count = len(movies['want_to_watch'])
 
+    # Sort movies
+    def get_rating(movie):
+        ratings = movie.get('ratings', {})
+        return sum(ratings.values()) / len(ratings) if ratings else 0
+
+    def get_sort_key(movie):
+        title = movie.get('title', '') if isinstance(movie, dict) else movie
+        if sort_by == "rating":
+            return -get_rating(movie)  # Negative for descending order
+        return title.lower()
+
     embed = discord.Embed(title="🎬 Movie Collection", color=discord.Color.purple())
 
     if movies['watched']:
         movie_lines = []
-        for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+        for movie in sorted(movies['watched'], key=get_sort_key):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
             added_username = movie.get('added_username') if isinstance(movie, dict) else None
@@ -641,7 +653,7 @@ async def all_movies(interaction: discord.Interaction):
 
     if movies['want_to_watch']:
         movie_lines = []
-        for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
+        for movie in sorted(movies['want_to_watch'], key=get_sort_key):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
             added_username = movie.get('added_username') if isinstance(movie, dict) else None
