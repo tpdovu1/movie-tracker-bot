@@ -479,6 +479,7 @@ async def help_command(interaction: discord.Interaction):
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/random_movie", "Pick a random movie from want to watch list"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
+        ("/refresh_imdb", "Update IMDb IDs for all movies"),
         ("/watched", "Show all watched movies"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/all_movies", "Show all movies in both lists"),
@@ -490,6 +491,48 @@ async def help_command(interaction: discord.Interaction):
         embed.add_field(name=command, value=description, inline=False)
 
     await interaction.response.send_message(embed=embed)
+
+@bot.tree.command(name='refresh_imdb', description='Update IMDb IDs for all movies')
+@app_commands.check(is_allowed_channel)
+async def refresh_imdb(interaction: discord.Interaction):
+    """Update IMDb IDs for all movies in the database"""
+    await interaction.response.defer()
+
+    if not OMDB_API_KEY:
+        await interaction.followup.send('❌ IMDb API key not configured!')
+        return
+
+    movies = load_movies()
+    updated_count = 0
+    errors = []
+
+    for list_name in ['watched', 'want_to_watch']:
+        for movie in movies[list_name]:
+            if isinstance(movie, dict):
+                title = movie.get('title', '')
+                current_imdb_id = movie.get('imdb_id')
+
+                # Skip if already has IMDb ID
+                if current_imdb_id:
+                    continue
+
+                # Fetch IMDb ID
+                try:
+                    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
+                    response = requests.get(url, timeout=5)
+                    data = response.json()
+
+                    if data.get('Response') == 'True':
+                        movie['imdb_id'] = data.get('imdbID')
+                        updated_count += 1
+                        print(f"Updated: {title} -> {movie['imdb_id']}")
+                except Exception as e:
+                    errors.append(f"{title}: {str(e)}")
+
+    if updated_count > 0:
+        save_movies(movies)
+
+    await interaction.followup.send(f"✅ Updated IMDb IDs for {updated_count} movies!" + (f"\nErrors: {', '.join(errors)}" if errors else ""))
 
 # Error handler for app commands
 @bot.tree.error
