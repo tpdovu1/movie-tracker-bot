@@ -484,6 +484,43 @@ async def clear_all(interaction: discord.Interaction):
     view = ConfirmView()
     await interaction.response.send_message('⚠️ Are you sure you want to clear all movies?', view=view)
 
+@bot.tree.command(name='claim_movie', description='Claim a movie as added by you')
+@app_commands.check(is_allowed_channel)
+async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
+    """Claim a movie as added by you (for old movies without user info)"""
+    movies = load_movies()
+
+    def get_title(movie):
+        return movie.get('title') if isinstance(movie, dict) else movie
+
+    # Search in specified list or both
+    found = False
+    list_name = None
+
+    if list_type in ['watched', 'w'] or list_type is None:
+        for movie in movies['watched']:
+            if get_title(movie).lower() == movie_name.lower():
+                movie['added_by'] = str(interaction.user.id)
+                movie['added_username'] = interaction.user.name
+                found = True
+                list_name = 'watched'
+                break
+
+    if not found and (list_type in ['want', 'w2w', 'want_to_watch'] or list_type is None):
+        for movie in movies['want_to_watch']:
+            if get_title(movie).lower() == movie_name.lower():
+                movie['added_by'] = str(interaction.user.id)
+                movie['added_username'] = interaction.user.name
+                found = True
+                list_name = 'want_to_watch'
+                break
+
+    if found:
+        save_movies(movies)
+        await interaction.response.send_message(f'✅ Claimed "{movie_name}" as added by **{interaction.user.name}**!')
+    else:
+        await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
+
 @bot.tree.command(name='help', description='Show available commands')
 @app_commands.check(is_allowed_channel)
 async def help_command(interaction: discord.Interaction):
@@ -496,6 +533,7 @@ async def help_command(interaction: discord.Interaction):
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/random_movie", "Pick a random movie from want to watch list"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
+        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
         ("/watched", "Show all watched movies"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/all_movies", "Show all movies in both lists"),
