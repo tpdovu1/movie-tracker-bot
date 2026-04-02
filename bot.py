@@ -430,7 +430,7 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
                     if target_id in movie['ratings']:
                         del movie['ratings'][target_id]
                 else:
-                    movie['ratings'][target_id] = rating
+                    movie['ratings'][target_id] = {"rating": rating, "username": target_name}
 
                 found = True
                 break
