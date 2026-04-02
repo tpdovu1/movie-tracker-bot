@@ -530,16 +530,16 @@ async def help_command(interaction: discord.Interaction):
     commands_list = [
         ("/add_watched <movie>", "Add a movie to watched list"),
         ("/add_want <movie>", "Add a movie to want to watch list"),
-        ("/movie_info <movie>", "Get IMDb info about a movie"),
-        ("/random_movie", "Pick a random movie from want to watch list"),
-        ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
-        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
-        ("/watched", "Show all watched movies"),
-        ("/want_to_watch", "Show all movies in want to watch list"),
         ("/all_movies", "Show all movies in both lists"),
-        ("/refresh_imdb", "Update IMDb IDs for all movies"),
+        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
         ("/clear_all", "Clear all movies (requires confirmation)"),
         ("/help", "Show this help message"),
+        ("/movie_info <movie>", "Get IMDb info about a movie"),
+        ("/random_movie", "Pick a random movie from want to watch list"),
+        ("/refresh_imdb", "Update IMDb IDs for all movies"),
+        ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
+        ("/want_to_watch", "Show all movies in want to watch list"),
+        ("/watched", "Show all watched movies"),
     ]
 
     for command, description in commands_list:
