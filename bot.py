@@ -26,6 +26,7 @@ ALLOWED_CHANNEL_ID = 1481502489625886923  # Replace with your channel ID, e.g., 
 
 def is_allowed_channel(interaction: discord.Interaction) -> bool:
     """Check if command is in allowed channel"""
+    print(f'Channel check: interaction.channel.id={interaction.channel.id}, ALLOWED_CHANNEL_ID={ALLOWED_CHANNEL_ID}')
     if ALLOWED_CHANNEL_ID is None:
         return True
     return interaction.channel.id == ALLOWED_CHANNEL_ID
