@@ -24,6 +24,7 @@ DB_FILE = os.getenv('MOVIES_DATA_PATH', 'movies.json')
 
 # Channel ID where bot will respond (set to None to allow all channels)
 ALLOWED_CHANNEL_ID = 1481502489625886923  # Replace with your channel ID, e.g., 1234567890
+ADMIN_USER_IDS = ['131235386763509760', '130528077271793664']
 
 def is_allowed_channel(interaction: discord.Interaction) -> bool:
     """Check if command is in allowed channel"""
@@ -31,6 +32,10 @@ def is_allowed_channel(interaction: discord.Interaction) -> bool:
     if ALLOWED_CHANNEL_ID is None:
         return True
     return interaction.channel.id == ALLOWED_CHANNEL_ID
+
+def is_admin(interaction: discord.Interaction) -> bool:
+    """Check if user is an admin"""
+    return str(interaction.user.id) in ADMIN_USER_IDS
 
 async def get_movie_info(movie_name):
     """Fetch movie info from OMDb API"""
@@ -531,6 +536,7 @@ class ConfirmView(discord.ui.View):
 
 @bot.tree.command(name='clear_all', description='Clear all movies (requires confirmation)')
 @app_commands.check(is_allowed_channel)
+@app_commands.check(is_admin)
 async def clear_all(interaction: discord.Interaction):
     """Clear all movies - requires confirmation"""
     view = ConfirmView()
@@ -538,6 +544,7 @@ async def clear_all(interaction: discord.Interaction):
 
 @bot.tree.command(name='claim_movie', description='Claim a movie as added by you')
 @app_commands.check(is_allowed_channel)
+@app_commands.check(is_admin)
 async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
     """Claim a movie as added by you (for old movies without user info)"""
     movies = load_movies()
@@ -576,28 +583,38 @@ async def help_command(interaction: discord.Interaction):
     """Show help message"""
     embed = discord.Embed(title="🎬 Movie Tracker Bot - Commands", color=discord.Color.gold())
 
-    commands_list = [
+    # Regular commands
+    regular_commands = [
         ("/add_watched <movie>", "Add a movie to watched list"),
         ("/add_want <movie>", "Add a movie to want to watch list"),
         ("/all_movies", "Show all movies in both lists"),
-        ("/clear_all", "Clear all movies (requires confirmation)"),
-        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
         ("/help", "Show this help message"),
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/random_movie", "Pick a random movie from want to watch list"),
-        ("/refresh_imdb", "Update IMDb IDs for all movies"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/watched", "Show all watched movies"),
     ]
 
-    for command, description in commands_list:
+    for command, description in regular_commands:
+        embed.add_field(name=command, value=description, inline=False)
+
+    # Admin commands
+    admin_commands = [
+        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
+        ("/clear_all", "Clear all movies (requires confirmation)"),
+        ("/refresh_imdb", "Update IMDb IDs for all movies"),
+    ]
+
+    embed.add_field(name="Admin Commands 🔧", value="​", inline=False)
+    for command, description in admin_commands:
         embed.add_field(name=command, value=description, inline=False)
 
     await interaction.response.send_message(embed=embed)
 
 @bot.tree.command(name='refresh_imdb', description='Update IMDb IDs for all movies')
 @app_commands.check(is_allowed_channel)
+@app_commands.check(is_admin)
 async def refresh_imdb(interaction: discord.Interaction):
     """Update IMDb IDs for all movies in the database"""
     await interaction.response.defer()
@@ -643,7 +660,12 @@ async def refresh_imdb(interaction: discord.Interaction):
 async def on_app_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError):
     """Handle app command errors"""
     if isinstance(error, app_commands.CheckFailure):
-        await interaction.response.send_message('❌ movie-tracker-bot commands only work in movie-tracker-bot text channel', ephemeral=True)
+        # Check if it's channel or admin failure
+        if hasattr(error, 'original'):
+            # Could be admin check failure
+            await interaction.response.send_message('❌ You do not have permission to use this command.', ephemeral=True)
+        else:
+            await interaction.response.send_message('❌ movie-tracker-bot commands only work in movie-tracker-bot text channel', ephemeral=True)
     else:
         await interaction.response.send_message(f'❌ An error occurred: {error}', ephemeral=True)
 
