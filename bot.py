@@ -13,6 +13,7 @@ import random
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 OMDB_API_KEY = os.getenv('OMDB_API_KEY')
+TMDB_API_KEY = os.getenv('TMDB_API_KEY')
 
 # Initialize bot
 intents = discord.Intents.default()
@@ -108,6 +109,33 @@ def is_url(input_str):
     """Check if input string is a URL"""
     url_pattern = r'https?://'
     return bool(re.search(url_pattern, input_str, re.IGNORECASE))
+
+async def get_tmdb_similar(movie_name):
+    """Get similar movies from TMDB based on movie name"""
+    if not TMDB_API_KEY:
+        return []
+
+    try:
+        # First search for the movie
+        search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
+        response = requests.get(search_url, timeout=5)
+        data = response.json()
+
+        if data.get('results') and len(data['results']) > 0:
+            tmdb_id = data['results'][0]['id']
+
+            # Get similar movies
+            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/similar?api_key={TMDB_API_KEY}"
+            response = requests.get(similar_url, timeout=5)
+            similar_data = response.json()
+
+            if similar_data.get('results'):
+                return similar_data['results'][:10]  # Return top 10
+    except Exception as e:
+        print(f"TMDB error: {e}")
+
+    return []
+
 
 def get_star_display(rating):
     """Generate star display - just shows number with star"""
@@ -518,6 +546,100 @@ async def random_movie(interaction: discord.Interaction):
     else:
         await interaction.followup.send(f'🎲 Random Pick: **{chosen_movie}**\n*(IMDb data not available for this movie)*')
 
+
+async def get_tmdb_similar(movie_name):
+    """Get similar movies from TMDB based on movie name"""
+    if not TMDB_API_KEY:
+        return []
+
+    try:
+        # First search for the movie
+        search_url = f"https://api.themoviedb.org/3/search/movie?api_key={TMDB_API_KEY}&query={movie_name}"
+        response = requests.get(search_url, timeout=5)
+        data = response.json()
+
+        if data.get('results') and len(data['results']) > 0:
+            tmdb_id = data['results'][0]['id']
+
+            # Get similar movies
+            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/similar?api_key={TMDB_API_KEY}"
+            response = requests.get(similar_url, timeout=5)
+            similar_data = response.json()
+
+            if similar_data.get('results'):
+                return similar_data['results'][:20]  # Return top 20
+    except Exception as e:
+        print(f"TMDB error: {e}")
+
+    return []
+
+
+@bot.tree.command(name='recommend', description='Get movie recommendations based on 1-3 movies')
+@app_commands.check(is_allowed_channel)
+@app_commands.autocomplete(movie1=movie_name_autocomplete, movie2=movie_name_autocomplete, movie3=movie_name_autocomplete)
+@app_commands.describe(
+    movie1="First movie to base recommendations on",
+    movie2="Optional second movie",
+    movie3="Optional third movie"
+)
+async def recommend(interaction: discord.Interaction, movie1: str, movie2: str = None, movie3: str = None):
+    """Get movie recommendations based on 1-3 movies"""
+    await interaction.response.defer()
+
+    if not TMDB_API_KEY:
+        await interaction.followup.send('❌ TMDB API not configured!')
+        return
+
+    # Collect movies to base recommendations on
+    base_movies = [movie1]
+    if movie2:
+        base_movies.append(movie2)
+    if movie3:
+        base_movies.append(movie3)
+
+    # Get similar movies for each base movie
+    all_similar = {}
+    titles_searched = []
+
+    for base_movie in base_movies:
+        similar = await get_tmdb_similar(base_movie)
+        titles_searched.append(base_movie)
+
+        for m in similar:
+            title = m.get('title', 'Unknown')
+            if title not in all_similar:
+                all_similar[title] = {
+                    'year': m.get('release_date', '')[:4] if m.get('release_date') else 'N/A',
+                    'rating': m.get('vote_average', 0),
+                    'count': 0
+                }
+            all_similar[title]['count'] += 1
+
+    if not all_similar:
+        await interaction.followup.send(f'❌ Could not find recommendations for "{movie1}"')
+        return
+
+    # Sort by count (appears in more similar lists = higher rank), then by rating
+    sorted_movies = sorted(all_similar.items(), key=lambda x: (x[1]['count'], x[1]['rating']), reverse=True)
+
+    # Build the response
+    lines = []
+    for title, info in sorted_movies[:10]:
+        lines.append(f"**{title}** ({info['year']}) - ⭐ {info['rating']:.1f} ({info['count']}x)")
+
+    embed = discord.Embed(
+        title=f"🎬 Recommendations based on {len(base_movies)} movie(s)",
+        description="\n".join(lines),
+        color=discord.Color.gold()
+    )
+    embed.add_field(name="Based on", value=", ".join(titles_searched), inline=False)
+    embed.set_footer(text="Movies appearing in more similar lists ranked higher • Powered by TMDB")
+
+    await interaction.followup.send(embed=embed)
+
+    await interaction.followup.send(embed=embed)
+
+
 @bot.tree.command(name='remove_movie', description='Remove a movie from your lists')
 @app_commands.check(is_allowed_channel)
 async def remove_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
@@ -795,6 +917,7 @@ async def help_command(interaction: discord.Interaction):
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/my_ratings", "Show movies you have rated"),
         ("/random_movie", "Pick a random movie from want to watch list"),
+        ("/recommend <movie1> [movie2] [movie3]", "Get recommendations based on 1-3 movies"),
         ("/rate <movie> [rating] [user]", "Rate a movie (0-5, 0 to remove, admin can target user)"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
         ("/want_to_watch", "Show all movies in want to watch list"),
