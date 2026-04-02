@@ -304,6 +304,7 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
 
 @bot.tree.command(name='movie_info', description='Get IMDb info about a movie')
 @app_commands.check(is_allowed_channel)
+@app_commands.autocomplete(movie_name=movie_name_autocomplete)
 async def movie_info(interaction: discord.Interaction, movie_name: str):
     """Get IMDb information about a movie"""
     await interaction.response.defer()
