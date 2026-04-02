@@ -22,7 +22,7 @@ bot = commands.Bot(command_prefix='/', intents=intents)
 DB_FILE = os.getenv('MOVIES_DATA_PATH', 'movies.json')
 
 # Channel ID where bot will respond (set to None to allow all channels)
-ALLOWED_CHANNEL_ID = None  # Replace with your channel ID, e.g., 1234567890
+ALLOWED_CHANNEL_ID = 1481502489625886923  # Replace with your channel ID, e.g., 1234567890
 
 def is_allowed_channel(interaction: discord.Interaction) -> bool:
     """Check if command is in allowed channel"""
