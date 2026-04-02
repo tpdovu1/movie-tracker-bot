@@ -137,6 +137,19 @@ async def get_tmdb_similar(movie_name):
     return []
 
 
+async def get_imdb_id_from_tmdb(tmdb_id: int) -> str:
+    """Get IMDb ID from TMDB ID"""
+    if not TMDB_API_KEY:
+        return None
+    try:
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        return data.get('imdb_id')
+    except:
+        return None
+
+
 def get_star_display(rating):
     """Generate star display - just shows number with star"""
     return f"⭐ {rating:.1f}"
@@ -574,6 +587,19 @@ async def get_tmdb_similar(movie_name):
     return []
 
 
+async def get_imdb_id_from_tmdb(tmdb_id: int) -> str:
+    """Get IMDb ID from TMDB ID"""
+    if not TMDB_API_KEY:
+        return None
+    try:
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}"
+        response = requests.get(url, timeout=5)
+        data = response.json()
+        return data.get('imdb_id')
+    except:
+        return None
+
+
 @bot.tree.command(name='recommend', description='Get movie recommendations based on 1-3 movies')
 @app_commands.check(is_allowed_channel)
 @app_commands.autocomplete(movie1=movie_name_autocomplete, movie2=movie_name_autocomplete, movie3=movie_name_autocomplete)
@@ -607,11 +633,13 @@ async def recommend(interaction: discord.Interaction, movie1: str, movie2: str =
 
         for m in similar:
             title = m.get('title', 'Unknown')
+            tmdb_id = m.get('id')
             if title not in all_similar:
                 all_similar[title] = {
                     'year': m.get('release_date', '')[:4] if m.get('release_date') else 'N/A',
                     'rating': m.get('vote_average', 0),
-                    'count': 0
+                    'count': 0,
+                    'tmdb_id': tmdb_id
                 }
             all_similar[title]['count'] += 1
 
@@ -622,10 +650,16 @@ async def recommend(interaction: discord.Interaction, movie1: str, movie2: str =
     # Sort by count (appears in more similar lists = higher rank), then by rating
     sorted_movies = sorted(all_similar.items(), key=lambda x: (x[1]['count'], x[1]['rating']), reverse=True)
 
-    # Build the response
+    # Build the response with IMDb links
     lines = []
     for title, info in sorted_movies[:10]:
-        lines.append(f"**{title}** ({info['year']}) - ⭐ {info['rating']:.1f} ({info['count']}x)")
+        # Fetch IMDb ID for each movie
+        imdb_id = await get_imdb_id_from_tmdb(info['tmdb_id']) if info.get('tmdb_id') else None
+        if imdb_id:
+            imdb_url = f"https://www.imdb.com/title/{imdb_id}/"
+            lines.append(f"**[{title}]({imdb_url})** ({info['year']}) - ⭐ {info['rating']:.1f} ({info['count']}x)")
+        else:
+            lines.append(f"**{title}** ({info['year']}) - ⭐ {info['rating']:.1f} ({info['count']}x)")
 
     embed = discord.Embed(
         title=f"🎬 Recommendations based on {len(base_movies)} movie(s)",
@@ -634,8 +668,6 @@ async def recommend(interaction: discord.Interaction, movie1: str, movie2: str =
     )
     embed.add_field(name="Based on", value=", ".join(titles_searched), inline=False)
     embed.set_footer(text="Movies appearing in more similar lists ranked higher • Powered by TMDB")
-
-    await interaction.followup.send(embed=embed)
 
     await interaction.followup.send(embed=embed)
 
