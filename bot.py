@@ -109,14 +109,20 @@ def load_movies():
             converted = {'watched': [], 'want_to_watch': []}
             for movie in data.get('watched', []):
                 if isinstance(movie, dict):
+                    # Ensure new fields exist for backwards compatibility
+                    movie['added_by'] = movie.get('added_by')
+                    movie['added_username'] = movie.get('added_username')
                     converted['watched'].append(movie)
                 else:
-                    converted['watched'].append({'title': movie, 'imdb_id': None})
+                    converted['watched'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
             for movie in data.get('want_to_watch', []):
                 if isinstance(movie, dict):
+                    # Ensure new fields exist for backwards compatibility
+                    movie['added_by'] = movie.get('added_by')
+                    movie['added_username'] = movie.get('added_username')
                     converted['want_to_watch'].append(movie)
                 else:
-                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None})
+                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
             return converted
     return {'watched': [], 'want_to_watch': []}
 
@@ -160,9 +166,14 @@ async def add_watched(interaction: discord.Interaction, movie_name: str):
     # Remove from want_to_watch if it's there
     movies['want_to_watch'] = [m for m in movies['want_to_watch'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    # Add movie with IMDb ID
+    # Add movie with IMDb ID and user info
     imdb_id = movie_info.get('imdb_id') if movie_info else None
-    movies['watched'].append({'title': actual_name, 'imdb_id': imdb_id})
+    movies['watched'].append({
+        'title': actual_name,
+        'imdb_id': imdb_id,
+        'added_by': str(interaction.user.id),
+        'added_username': interaction.user.name
+    })
     save_movies(movies)
 
     if movie_info:
@@ -207,9 +218,14 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
     # Remove from watched if it's there
     movies['watched'] = [m for m in movies['watched'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    # Add movie with IMDb ID
+    # Add movie with IMDb ID and user info
     imdb_id = movie_info.get('imdb_id') if movie_info else None
-    movies['want_to_watch'].append({'title': actual_name, 'imdb_id': imdb_id})
+    movies['want_to_watch'].append({
+        'title': actual_name,
+        'imdb_id': imdb_id,
+        'added_by': str(interaction.user.id),
+        'added_username': interaction.user.name
+    })
     save_movies(movies)
 
     if movie_info:
@@ -358,15 +374,16 @@ async def watched(interaction: discord.Interaction):
         await interaction.response.send_message('📽️ No movies watched yet!')
         return
 
-    # Build movie list with IMDb links
+    # Build movie list with IMDb links and who added
     movie_lines = []
     for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+        added_username = movie.get('added_username') if isinstance(movie, dict) else None
         if imdb_id:
-            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
+            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
         else:
-            movie_lines.append(f"✅ {title}")
+            movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
@@ -383,15 +400,16 @@ async def want_to_watch(interaction: discord.Interaction):
         await interaction.response.send_message('📋 Want to watch list is empty!')
         return
 
-    # Build movie list with IMDb links
+    # Build movie list with IMDb links and who added
     movie_lines = []
     for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+        added_username = movie.get('added_username') if isinstance(movie, dict) else None
         if imdb_id:
-            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
+            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
         else:
-            movie_lines.append(f"📝 {title}")
+            movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
@@ -414,10 +432,11 @@ async def all_movies(interaction: discord.Interaction):
         for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+            added_username = movie.get('added_username') if isinstance(movie, dict) else None
             if imdb_id:
-                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
+                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
             else:
-                movie_lines.append(f"✅ {title}")
+                movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
         watched_list = '\n'.join(movie_lines)
         embed.add_field(name="Watched 🎥", value=watched_list, inline=False)
 
@@ -426,10 +445,11 @@ async def all_movies(interaction: discord.Interaction):
         for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+            added_username = movie.get('added_username') if isinstance(movie, dict) else None
             if imdb_id:
-                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
+                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
             else:
-                movie_lines.append(f"📝 {title}")
+                movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
         want_list = '\n'.join(movie_lines)
         embed.add_field(name="Want to Watch 📋", value=want_list, inline=False)
 
