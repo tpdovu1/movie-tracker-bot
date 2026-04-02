@@ -481,7 +481,7 @@ async def my_ratings(interaction: discord.Interaction):
     for m in sorted(rated_movies, key=lambda x: x['title']):
         stars = get_star_display(m['your_rating'])
         avg_stars = get_star_display(m['avg_rating'])
-        lines.append(f"**{m['title']}** — You: {m['your_rating']}{stars} | Avg: {m['avg_rating']:.1f}{avg_stars}")
+        lines.append(f"**{m['title']}** — You: {stars} | Avg: {avg_stars}")
 
     embed = discord.Embed(title="📊 Your Ratings", description="\n".join(lines), color=discord.Color.gold())
     embed.set_footer(text=f"You have rated {len(rated_movies)} movies")
