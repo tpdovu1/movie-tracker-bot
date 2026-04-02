@@ -534,6 +534,9 @@ class MovieListView(discord.ui.View):
             else:
                 await interaction.response.send_message(f"❌ Could not fetch details for **{title}**")
         return callback
+
+
+class ConfirmView(discord.ui.View):
     def __init__(self):
         super().__init__()
         self.confirmed = None
