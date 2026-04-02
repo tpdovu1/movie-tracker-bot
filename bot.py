@@ -109,20 +109,14 @@ def load_movies():
             converted = {'watched': [], 'want_to_watch': []}
             for movie in data.get('watched', []):
                 if isinstance(movie, dict):
-                    # Ensure new fields exist for backwards compatibility
-                    movie['added_by'] = movie.get('added_by')
-                    movie['added_username'] = movie.get('added_username')
                     converted['watched'].append(movie)
                 else:
-                    converted['watched'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
+                    converted['watched'].append({'title': movie, 'imdb_id': None})
             for movie in data.get('want_to_watch', []):
                 if isinstance(movie, dict):
-                    # Ensure new fields exist for backwards compatibility
-                    movie['added_by'] = movie.get('added_by')
-                    movie['added_username'] = movie.get('added_username')
                     converted['want_to_watch'].append(movie)
                 else:
-                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
+                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None})
             return converted
     return {'watched': [], 'want_to_watch': []}
 
@@ -134,13 +128,9 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
-    print('Syncing slash commands...')
-    try:
-        synced = await bot.tree.sync()
-        print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
-    except Exception as e:
-        print(f'Sync error: {e}')
+    await bot.tree.sync()
     print(f'{bot.user} has connected to Discord!')
+    print(f'Synced slash commands')
     print('------')
 
 @bot.tree.command(name='add_watched', description='Add a movie to watched list')
@@ -166,14 +156,9 @@ async def add_watched(interaction: discord.Interaction, movie_name: str):
     # Remove from want_to_watch if it's there
     movies['want_to_watch'] = [m for m in movies['want_to_watch'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    # Add movie with IMDb ID and user info
+    # Add movie with IMDb ID
     imdb_id = movie_info.get('imdb_id') if movie_info else None
-    movies['watched'].append({
-        'title': actual_name,
-        'imdb_id': imdb_id,
-        'added_by': str(interaction.user.id),
-        'added_username': interaction.user.name
-    })
+    movies['watched'].append({'title': actual_name, 'imdb_id': imdb_id})
     save_movies(movies)
 
     if movie_info:
@@ -218,14 +203,9 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
     # Remove from watched if it's there
     movies['watched'] = [m for m in movies['watched'] if (m.get('title') if isinstance(m, dict) else m) != actual_name]
 
-    # Add movie with IMDb ID and user info
+    # Add movie with IMDb ID
     imdb_id = movie_info.get('imdb_id') if movie_info else None
-    movies['want_to_watch'].append({
-        'title': actual_name,
-        'imdb_id': imdb_id,
-        'added_by': str(interaction.user.id),
-        'added_username': interaction.user.name
-    })
+    movies['want_to_watch'].append({'title': actual_name, 'imdb_id': imdb_id})
     save_movies(movies)
 
     if movie_info:
@@ -374,16 +354,15 @@ async def watched(interaction: discord.Interaction):
         await interaction.response.send_message('📽️ No movies watched yet!')
         return
 
-    # Build movie list with IMDb links and who added
+    # Build movie list with IMDb links
     movie_lines = []
     for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
-        added_username = movie.get('added_username') if isinstance(movie, dict) else None
         if imdb_id:
-            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
         else:
-            movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"✅ {title}")
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
@@ -400,16 +379,15 @@ async def want_to_watch(interaction: discord.Interaction):
         await interaction.response.send_message('📋 Want to watch list is empty!')
         return
 
-    # Build movie list with IMDb links and who added
+    # Build movie list with IMDb links
     movie_lines = []
     for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
-        added_username = movie.get('added_username') if isinstance(movie, dict) else None
         if imdb_id:
-            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
         else:
-            movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"📝 {title}")
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
@@ -432,11 +410,10 @@ async def all_movies(interaction: discord.Interaction):
         for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
-            added_username = movie.get('added_username') if isinstance(movie, dict) else None
             if imdb_id:
-                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)")
             else:
-                movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"✅ {title}")
         watched_list = '\n'.join(movie_lines)
         embed.add_field(name="Watched 🎥", value=watched_list, inline=False)
 
@@ -445,11 +422,10 @@ async def all_movies(interaction: discord.Interaction):
         for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
-            added_username = movie.get('added_username') if isinstance(movie, dict) else None
             if imdb_id:
-                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)")
             else:
-                movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"📝 {title}")
         want_list = '\n'.join(movie_lines)
         embed.add_field(name="Want to Watch 📋", value=want_list, inline=False)
 
@@ -484,43 +460,6 @@ async def clear_all(interaction: discord.Interaction):
     view = ConfirmView()
     await interaction.response.send_message('⚠️ Are you sure you want to clear all movies?', view=view)
 
-@bot.tree.command(name='claim_movie', description='Claim a movie as added by you')
-@app_commands.check(is_allowed_channel)
-async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None):
-    """Claim a movie as added by you (for old movies without user info)"""
-    movies = load_movies()
-
-    def get_title(movie):
-        return movie.get('title') if isinstance(movie, dict) else movie
-
-    # Search in specified list or both
-    found = False
-    list_name = None
-
-    if list_type in ['watched', 'w'] or list_type is None:
-        for movie in movies['watched']:
-            if get_title(movie).lower() == movie_name.lower():
-                movie['added_by'] = str(interaction.user.id)
-                movie['added_username'] = interaction.user.name
-                found = True
-                list_name = 'watched'
-                break
-
-    if not found and (list_type in ['want', 'w2w', 'want_to_watch'] or list_type is None):
-        for movie in movies['want_to_watch']:
-            if get_title(movie).lower() == movie_name.lower():
-                movie['added_by'] = str(interaction.user.id)
-                movie['added_username'] = interaction.user.name
-                found = True
-                list_name = 'want_to_watch'
-                break
-
-    if found:
-        save_movies(movies)
-        await interaction.response.send_message(f'✅ Claimed "{movie_name}" as added by **{interaction.user.name}**!')
-    else:
-        await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
-
 @bot.tree.command(name='help', description='Show available commands')
 @app_commands.check(is_allowed_channel)
 async def help_command(interaction: discord.Interaction):
@@ -530,64 +469,20 @@ async def help_command(interaction: discord.Interaction):
     commands_list = [
         ("/add_watched <movie>", "Add a movie to watched list"),
         ("/add_want <movie>", "Add a movie to want to watch list"),
-        ("/all_movies", "Show all movies in both lists"),
-        ("/claim_movie <movie> [watched|want]", "Claim ownership of an old movie"),
-        ("/clear_all", "Clear all movies (requires confirmation)"),
-        ("/help", "Show this help message"),
         ("/movie_info <movie>", "Get IMDb info about a movie"),
         ("/random_movie", "Pick a random movie from want to watch list"),
-        ("/refresh_imdb", "Update IMDb IDs for all movies"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
-        ("/want_to_watch", "Show all movies in want to watch list"),
         ("/watched", "Show all watched movies"),
+        ("/want_to_watch", "Show all movies in want to watch list"),
+        ("/all_movies", "Show all movies in both lists"),
+        ("/clear_all", "Clear all movies (requires confirmation)"),
+        ("/help", "Show this help message"),
     ]
 
     for command, description in commands_list:
         embed.add_field(name=command, value=description, inline=False)
 
     await interaction.response.send_message(embed=embed)
-
-@bot.tree.command(name='refresh_imdb', description='Update IMDb IDs for all movies')
-@app_commands.check(is_allowed_channel)
-async def refresh_imdb(interaction: discord.Interaction):
-    """Update IMDb IDs for all movies in the database"""
-    await interaction.response.defer()
-
-    if not OMDB_API_KEY:
-        await interaction.followup.send('❌ IMDb API key not configured!')
-        return
-
-    movies = load_movies()
-    updated_count = 0
-    errors = []
-
-    for list_name in ['watched', 'want_to_watch']:
-        for movie in movies[list_name]:
-            if isinstance(movie, dict):
-                title = movie.get('title', '')
-                current_imdb_id = movie.get('imdb_id')
-
-                # Skip if already has IMDb ID
-                if current_imdb_id:
-                    continue
-
-                # Fetch IMDb ID
-                try:
-                    url = f"http://www.omdbapi.com/?t={title}&apikey={OMDB_API_KEY}"
-                    response = requests.get(url, timeout=5)
-                    data = response.json()
-
-                    if data.get('Response') == 'True':
-                        movie['imdb_id'] = data.get('imdbID')
-                        updated_count += 1
-                        print(f"Updated: {title} -> {movie['imdb_id']}")
-                except Exception as e:
-                    errors.append(f"{title}: {str(e)}")
-
-    if updated_count > 0:
-        save_movies(movies)
-
-    await interaction.followup.send(f"✅ Updated IMDb IDs for {updated_count} movies!" + (f"\nErrors: {', '.join(errors)}" if errors else ""))
 
 # Error handler for app commands
 @bot.tree.error
