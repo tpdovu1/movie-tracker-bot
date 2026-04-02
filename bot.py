@@ -316,6 +316,30 @@ async def movie_info(interaction: discord.Interaction, movie_name: str):
             embed.add_field(name="Plot", value=movie_data['plot'], inline=False)
         if movie_data['poster'] and movie_data['poster'] != 'N/A':
             embed.set_image(url=movie_data['poster'])
+
+        # Get local ratings from our database
+        movies = load_movies()
+        local_ratings = {}
+
+        def get_title(m):
+            return m.get('title') if isinstance(m, dict) else m
+
+        for movie in movies['watched'] + movies['want_to_watch']:
+            if get_title(movie).lower() == movie_name.lower():
+                local_ratings = movie.get('ratings', {})
+                break
+
+        if local_ratings:
+            avg = sum(local_ratings.values()) / len(local_ratings)
+            stars = get_star_display(avg)
+            embed.add_field(name="Community Rating", value=f"{stars} ({avg:.1f}) from {len(local_ratings)} user(s)", inline=False)
+
+            # Show each user's rating
+            ratings_lines = []
+            for user_id, rating in local_ratings.items():
+                ratings_lines.append(f"• {rating}/5")
+            embed.add_field(name="User Ratings", value="\n".join(ratings_lines), inline=False)
+
         embed.set_footer(text=f"IMDb ID: {movie_data['imdb_id']}")
         await interaction.followup.send(embed=embed)
     else:
