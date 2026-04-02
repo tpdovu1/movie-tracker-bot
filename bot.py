@@ -959,14 +959,15 @@ async def help_command(interaction: discord.Interaction):
     for command, description in regular_commands:
         embed.add_field(name=command, value=description, inline=False)
 
-    # Admin commands
+    # Admin commands - add header as part of first command description
     admin_commands = [
         ("/claim_movie <movie> [claimed_by]", "Claim ownership of a movie"),
         ("/clear_all", "Clear all movies (requires confirmation)"),
         ("/refresh_imdb", "Update IMDb IDs for all movies"),
     ]
 
-    embed.add_field(name="Admin Commands 🔧", value="​", inline=False)
+    # Add admin header as a separate field
+    embed.add_field(name="Admin Commands 🔧", value="────────────────────────────────", inline=False)
     for command, description in admin_commands:
         embed.add_field(name=command, value=description, inline=False)
 
