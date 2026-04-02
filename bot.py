@@ -55,6 +55,7 @@ async def get_movie_info(movie_name):
                 'plot': data.get('Plot'),
                 'genre': data.get('Genre'),
                 'director': data.get('Director'),
+                'actors': data.get('Actors'),
                 'poster': data.get('Poster'),
                 'imdb_id': data.get('imdbID')
             }
@@ -88,6 +89,7 @@ async def extract_from_url(input_str):
                     'plot': data.get('Plot'),
                     'genre': data.get('Genre'),
                     'director': data.get('Director'),
+                    'actors': data.get('Actors'),
                     'poster': data.get('Poster'),
                     'imdb_id': data.get('imdbID')
                 }
@@ -385,7 +387,7 @@ async def watched(interaction: discord.Interaction):
         await interaction.response.send_message('📽️ No movies watched yet!')
         return
 
-    # Build movie list with IMDb links and who added
+    # Build movie list with IMDb links and who added (for text fallback)
     movie_lines = []
     for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
@@ -398,8 +400,11 @@ async def watched(interaction: discord.Interaction):
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
-    embed.set_footer(text=f"Total: {len(movies['watched'])} movies")
-    await interaction.response.send_message(embed=embed)
+    embed.set_footer(text=f"Total: {len(movies['watched'])} movies • Click buttons for details")
+
+    # Add interactive view with buttons
+    view = MovieListView(movies['watched'], 'watched')
+    await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name='want_to_watch', description='Show all movies in want to watch list')
 @app_commands.check(is_allowed_channel)
@@ -411,7 +416,7 @@ async def want_to_watch(interaction: discord.Interaction):
         await interaction.response.send_message('📋 Want to watch list is empty!')
         return
 
-    # Build movie list with IMDb links and who added
+    # Build movie list with IMDb links and who added (for text fallback)
     movie_lines = []
     for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
@@ -424,8 +429,11 @@ async def want_to_watch(interaction: discord.Interaction):
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
-    embed.set_footer(text=f"Total: {len(movies['want_to_watch'])} movies")
-    await interaction.response.send_message(embed=embed)
+    embed.set_footer(text=f"Total: {len(movies['want_to_watch'])} movies • Click buttons for details")
+
+    # Add interactive view with buttons
+    view = MovieListView(movies['want_to_watch'], 'want')
+    await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name='all_movies', description='Show all movies in both lists')
 @app_commands.check(is_allowed_channel)
@@ -467,10 +475,65 @@ async def all_movies(interaction: discord.Interaction):
     if not movies['watched'] and not movies['want_to_watch']:
         embed.description = "No movies added yet!"
 
-    embed.set_footer(text=f"Watched: {watched_count} | Want to Watch: {want_count}")
-    await interaction.response.send_message(embed=embed)
+    embed.set_footer(text=f"Watched: {watched_count} | Want to Watch: {want_count} • Click buttons for details")
 
-class ConfirmView(discord.ui.View):
+    # Add interactive view with buttons (combined list)
+    all_movies_list = movies['watched'] + movies['want_to_watch']
+    view = MovieListView(all_movies_list, 'all')
+    await interaction.response.send_message(embed=embed, view=view)
+
+class MovieListView(discord.ui.View):
+    def __init__(self, movies, list_type):
+        super().__init__()
+        self.movies = movies
+        self.list_type = list_type
+
+        # Add a button for each movie (max 25 due to Discord limits)
+        for i, movie in enumerate(sorted(movies, key=lambda x: x.get('title', '') if isinstance(x, dict) else x)[:25]):
+            title = movie.get('title') if isinstance(movie, dict) else movie
+            imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
+
+            # Use custom_id to pass movie data
+            button = discord.ui.Button(
+                label=title[:80],  # Discord button label limit
+                custom_id=f"movie_{i}",
+                style=discord.ButtonStyle.primary
+            )
+            button.callback = self.make_callback(i, title, imdb_id)
+            self.add_item(button)
+
+    def make_callback(self, index, title, imdb_id):
+        async def callback(interaction: discord.Interaction):
+            # Fetch movie info
+            movie_info = await get_movie_info(title)
+
+            if movie_info:
+                embed = discord.Embed(title=f"🎬 {movie_info['title']}", color=discord.Color.gold())
+                if movie_info['year']:
+                    embed.add_field(name="Year", value=movie_info['year'], inline=True)
+                if movie_info['rating'] and movie_info['rating'] != 'N/A':
+                    embed.add_field(name="IMDb Rating", value=f"⭐ {movie_info['rating']}/10", inline=True)
+                if movie_info['genre']:
+                    embed.add_field(name="Genre", value=movie_info['genre'], inline=True)
+                if movie_info['director']:
+                    embed.add_field(name="Director", value=movie_info['director'], inline=False)
+                if movie_info['actors']:
+                    embed.add_field(name="Actors", value=movie_info['actors'][:200], inline=False)
+                if movie_info['plot']:
+                    embed.add_field(name="Plot", value=movie_info['plot'], inline=False)
+                if movie_info['poster'] and movie_info['poster'] != 'N/A':
+                    embed.set_image(url=movie_info['poster'])
+
+                # Add IMDb link button
+                if imdb_id:
+                    view = discord.ui.View()
+                    view.add_item(discord.ui.Button(label="Open on IMDb", url=f"https://www.imdb.com/title/{imdb_id}/", style=discord.ButtonStyle.link))
+                    await interaction.response.send_message(embed=embed, view=view)
+                else:
+                    await interaction.response.send_message(embed=embed)
+            else:
+                await interaction.response.send_message(f"❌ Could not fetch details for **{title}**")
+        return callback
     def __init__(self):
         super().__init__()
         self.confirmed = None
