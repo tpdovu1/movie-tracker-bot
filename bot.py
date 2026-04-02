@@ -968,6 +968,7 @@ async def help_command(interaction: discord.Interaction):
 
     # Add admin header as a separate field
     embed.add_field(name="Admin Commands 🔧", value="────────────────────────────────", inline=False)
+    embed.add_field(name="​", value="​", inline=False)
     for command, description in admin_commands:
         embed.add_field(name=command, value=description, inline=False)
 
