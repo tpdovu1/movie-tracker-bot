@@ -136,6 +136,8 @@ async def on_ready():
     """Called when bot is ready"""
     print('Syncing slash commands...')
     try:
+        # Clear existing commands to force refresh
+        bot.tree.clear_commands(guild=None)
         synced = await bot.tree.sync()
         print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
     except Exception as e:
