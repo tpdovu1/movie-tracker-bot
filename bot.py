@@ -109,6 +109,10 @@ def is_url(input_str):
     url_pattern = r'https?://'
     return bool(re.search(url_pattern, input_str, re.IGNORECASE))
 
+def get_star_display(rating):
+    """Generate star display - just shows number with star"""
+    return f"⭐ {rating:.1f}"
+
 def load_movies():
     """Load movies from JSON file"""
     if os.path.exists(DB_FILE):
@@ -121,17 +125,19 @@ def load_movies():
                     # Ensure new fields exist for backwards compatibility
                     movie['added_by'] = movie.get('added_by')
                     movie['added_username'] = movie.get('added_username')
+                    movie['ratings'] = movie.get('ratings', {})
                     converted['watched'].append(movie)
                 else:
-                    converted['watched'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
+                    converted['watched'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None, 'ratings': {}})
             for movie in data.get('want_to_watch', []):
                 if isinstance(movie, dict):
                     # Ensure new fields exist for backwards compatibility
                     movie['added_by'] = movie.get('added_by')
                     movie['added_username'] = movie.get('added_username')
+                    movie['ratings'] = movie.get('ratings', {})
                     converted['want_to_watch'].append(movie)
                 else:
-                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None})
+                    converted['want_to_watch'].append({'title': movie, 'imdb_id': None, 'added_by': None, 'added_username': None, 'ratings': {}})
             return converted
     return {'watched': [], 'want_to_watch': []}
 
@@ -333,6 +339,92 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
 
     return [app_commands.Choice(name=movie, value=movie) for movie in sorted(all_movies)[:25]]
 
+
+@bot.tree.command(name='rate', description='Rate a movie (0-5 stars)')
+@app_commands.check(is_allowed_channel)
+@app_commands.autocomplete(movie_name=movie_name_autocomplete)
+@app_commands.describe(rating="Rating from 0 to 5 (decimals allowed)")
+async def rate(interaction: discord.Interaction, movie_name: str, rating: float):
+    """Rate a movie from 0 to 5 stars"""
+    # Validate rating
+    if rating < 0 or rating > 5:
+        await interaction.response.send_message('❌ Rating must be between 0 and 5!')
+        return
+
+    movies = load_movies()
+    user_id = str(interaction.user.id)
+
+    def get_title(movie):
+        return movie.get('title') if isinstance(movie, dict) else movie
+
+    # Search in both lists
+    found = False
+
+    for movie in movies['watched']:
+        if get_title(movie).lower() == movie_name.lower():
+            if 'ratings' not in movie:
+                movie['ratings'] = {}
+            movie['ratings'][user_id] = rating
+            found = True
+            break
+
+    if not found:
+        for movie in movies['want_to_watch']:
+            if get_title(movie).lower() == movie_name.lower():
+                if 'ratings' not in movie:
+                    movie['ratings'] = {}
+                movie['ratings'][user_id] = rating
+                found = True
+                break
+
+    if found:
+        save_movies(movies)
+        # Calculate average
+        ratings = movie.get('ratings', {})
+        avg = sum(ratings.values()) / len(ratings) if ratings else 0
+        stars = get_star_display(avg)
+        await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! {stars} (avg: {avg:.1f})')
+    else:
+        await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
+
+
+@bot.tree.command(name='my_ratings', description='Show movies you have rated')
+@app_commands.check(is_allowed_channel)
+async def my_ratings(interaction: discord.Interaction):
+    """Show all movies you have rated"""
+    movies = load_movies()
+    user_id = str(interaction.user.id)
+
+    rated_movies = []
+
+    for movie in movies['watched'] + movies['want_to_watch']:
+        title = movie.get('title') if isinstance(movie, dict) else movie
+        ratings = movie.get('ratings', {})
+        if user_id in ratings:
+            user_rating = ratings[user_id]
+            avg = sum(ratings.values()) / len(ratings) if ratings else 0
+            rated_movies.append({
+                'title': title,
+                'your_rating': user_rating,
+                'avg_rating': avg,
+                'ratings': ratings
+            })
+
+    if not rated_movies:
+        await interaction.response.send_message('📝 You haven\'t rated any movies yet!')
+        return
+
+    lines = []
+    for m in sorted(rated_movies, key=lambda x: x['title']):
+        stars = get_star_display(m['your_rating'])
+        avg_stars = get_star_display(m['avg_rating'])
+        lines.append(f"**{m['title']}** — You: {m['your_rating']}{stars} | Avg: {m['avg_rating']:.1f}{avg_stars}")
+
+    embed = discord.Embed(title="📊 Your Ratings", description="\n".join(lines), color=discord.Color.gold())
+    embed.set_footer(text=f"You have rated {len(rated_movies)} movies")
+    await interaction.response.send_message(embed=embed)
+
+
 @bot.tree.command(name='random_movie', description='Pick a random movie from your want to watch list')
 @app_commands.check(is_allowed_channel)
 async def random_movie(interaction: discord.Interaction):
@@ -429,16 +521,25 @@ async def watched(interaction: discord.Interaction):
         await interaction.response.send_message('📽️ No movies watched yet!')
         return
 
-    # Build movie list with IMDb links and who added (for text fallback)
+    # Build movie list with IMDb links, ratings, and who added
     movie_lines = []
     for movie in sorted(movies['watched'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
         added_username = movie.get('added_username') if isinstance(movie, dict) else None
+        ratings = movie.get('ratings', {})
+
+        # Calculate average rating
+        rating_str = ""
+        if ratings:
+            avg = sum(ratings.values()) / len(ratings)
+            get_star_display(avg)
+            rating_str = f" {stars} ({avg:.1f})"
+
         if imdb_id:
-            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
         else:
-            movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"✅ {title}{rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Watched Movies", description=movie_list, color=discord.Color.green())
@@ -455,16 +556,25 @@ async def want_to_watch(interaction: discord.Interaction):
         await interaction.response.send_message('📋 Want to watch list is empty!')
         return
 
-    # Build movie list with IMDb links and who added (for text fallback)
+    # Build movie list with IMDb links, ratings, and who added
     movie_lines = []
     for movie in sorted(movies['want_to_watch'], key=lambda x: x.get('title', '') if isinstance(x, dict) else x):
         title = movie.get('title') if isinstance(movie, dict) else movie
         imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
         added_username = movie.get('added_username') if isinstance(movie, dict) else None
+        ratings = movie.get('ratings', {})
+
+        # Calculate average rating
+        rating_str = ""
+        if ratings:
+            avg = sum(ratings.values()) / len(ratings)
+            get_star_display(avg)
+            rating_str = f" {stars} ({avg:.1f})"
+
         if imdb_id:
-            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
         else:
-            movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
+            movie_lines.append(f"📝 {title}{rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
 
     movie_list = '\n'.join(movie_lines)
     embed = discord.Embed(title="🎬 Want to Watch", description=movie_list, color=discord.Color.blue())
@@ -488,10 +598,19 @@ async def all_movies(interaction: discord.Interaction):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
             added_username = movie.get('added_username') if isinstance(movie, dict) else None
+            ratings = movie.get('ratings', {})
+
+            # Calculate average rating
+            rating_str = ""
+            if ratings:
+                avg = sum(ratings.values()) / len(ratings)
+                get_star_display(avg)
+                rating_str = f" {stars} ({avg:.1f})"
+
             if imdb_id:
-                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
             else:
-                movie_lines.append(f"✅ {title}" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"✅ {title}{rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
         watched_list = '\n'.join(movie_lines)
         embed.add_field(name="Watched 🎥", value=watched_list, inline=False)
 
@@ -501,10 +620,19 @@ async def all_movies(interaction: discord.Interaction):
             title = movie.get('title') if isinstance(movie, dict) else movie
             imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
             added_username = movie.get('added_username') if isinstance(movie, dict) else None
+            ratings = movie.get('ratings', {})
+
+            # Calculate average rating
+            rating_str = ""
+            if ratings:
+                avg = sum(ratings.values()) / len(ratings)
+                get_star_display(avg)
+                rating_str = f" {stars} ({avg:.1f})"
+
             if imdb_id:
-                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
             else:
-                movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
+                movie_lines.append(f"📝 {title}{rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
         want_list = '\n'.join(movie_lines)
         embed.add_field(name="Want to Watch 📋", value=want_list, inline=False)
 
@@ -598,7 +726,9 @@ async def help_command(interaction: discord.Interaction):
         ("/all_movies", "Show all movies in both lists"),
         ("/help", "Show this help message"),
         ("/movie_info <movie>", "Get IMDb info about a movie"),
+        ("/my_ratings", "Show movies you have rated"),
         ("/random_movie", "Pick a random movie from want to watch list"),
+        ("/rate <movie> <rating>", "Rate a movie (0-5 stars)"),
         ("/remove_movie <movie> [watched|want]", "Remove a movie from any list"),
         ("/want_to_watch", "Show all movies in want to watch list"),
         ("/watched", "Show all watched movies"),
