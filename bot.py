@@ -384,7 +384,7 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
 @app_commands.autocomplete(movie_name=movie_name_autocomplete)
 @app_commands.describe(rating="Rating from 0 to 5 (decimals allowed, 0 to remove)")
 async def rate(interaction: discord.Interaction, movie_name: str, rating: float = None, user: discord.User = None):
-    """Rate a movie from 0 to 5 stars (0 removes your rating)"""
+    """Rate a movie from 0 to 5 stars (0 removes your rating) - only works on watched movies"""
     # If user is specified, only admins can use it
     if user and not is_admin(interaction):
         await interaction.response.send_message('❌ Only admins can remove other users\' ratings!')
@@ -403,7 +403,13 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
     def get_title(movie):
         return movie.get('title') if isinstance(movie, dict) else movie
 
-    # Search in both lists
+    # Check if movie is in want_to_watch - can't rate from there
+    want_titles = [get_title(m).lower() for m in movies['want_to_watch']]
+    if movie_name.lower() in want_titles:
+        await interaction.response.send_message('❌ You can only rate movies in your watched list! Move it to watched first to rate.')
+        return
+
+    # Search only in watched list
     found = False
 
     for movie in movies['watched']:
@@ -420,21 +426,6 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
 
             found = True
             break
-
-    if not found:
-        for movie in movies['want_to_watch']:
-            if get_title(movie).lower() == movie_name.lower():
-                if 'ratings' not in movie:
-                    movie['ratings'] = {}
-
-                if rating == 0 or rating is None:
-                    if target_id in movie['ratings']:
-                        del movie['ratings'][target_id]
-                else:
-                    movie['ratings'][target_id] = {"rating": rating, "username": target_name}
-
-                found = True
-                break
 
     if found:
         save_movies(movies)
