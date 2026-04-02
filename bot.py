@@ -542,7 +542,7 @@ async def clear_all(interaction: discord.Interaction):
     view = ConfirmView()
     await interaction.response.send_message('⚠️ Are you sure you want to clear all movies?', view=view)
 
-@bot.tree.command(name='claim_movie', description='Claim a movie as added by you')
+@bot.tree.command(name='claim_movie', description='Claim a movie as added by a user')
 @app_commands.check(is_allowed_channel)
 @app_commands.check(is_admin)
 async def claim_movie(interaction: discord.Interaction, movie_name: str, list_type: str = None, claimed_by: discord.User = None):
