@@ -260,6 +260,25 @@ async def add_want(interaction: discord.Interaction, movie_name: str):
     else:
         await interaction.followup.send(f'📝 Added "{actual_name}" to want to watch list!')
 
+
+async def movie_name_autocomplete(interaction: discord.Interaction, current: str) -> list[app_commands.Choice[str]]:
+    """Autocomplete movie names from the movie lists"""
+    movies = load_movies()
+    all_movies = []
+
+    # Collect all movie titles from both lists
+    for movie in movies['watched'] + movies['want_to_watch']:
+        title = movie.get('title') if isinstance(movie, dict) else movie
+        if title:
+            all_movies.append(title)
+
+    # Filter by current input and return up to 25 choices
+    if current:
+        all_movies = [m for m in all_movies if current.lower() in m.lower()]
+
+    return [app_commands.Choice(name=movie, value=movie) for movie in sorted(all_movies)[:25]]
+
+
 @bot.tree.command(name='movie_info', description='Get IMDb info about a movie')
 @app_commands.check(is_allowed_channel)
 @app_commands.autocomplete(movie_name=movie_name_autocomplete)
