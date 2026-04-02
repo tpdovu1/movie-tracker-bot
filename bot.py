@@ -145,17 +145,11 @@ async def on_ready():
     """Called when bot is ready"""
     print('Syncing slash commands...')
     try:
+        # Clear all commands first to ensure fresh sync
+        bot.tree.clear_commands(guild=None)
+        await asyncio.sleep(1)
         synced = await bot.tree.sync()
         print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
-
-        command_names = [cmd.name for cmd in synced]
-        # If new command not found, clear and retry
-        if 'claim_movie' not in command_names:
-            print('New command not found, clearing and retrying...')
-            bot.tree.clear_commands(guild=None)
-            await asyncio.sleep(1)
-            synced = await bot.tree.sync()
-            print(f'Retry synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
     except Exception as e:
         print(f'Sync error: {e}')
     print(f'{bot.user} has connected to Discord!')
