@@ -604,7 +604,7 @@ async def all_movies(interaction: discord.Interaction):
             rating_str = ""
             if ratings:
                 avg = sum(ratings.values()) / len(ratings)
-                get_star_display(avg)
+                stars = get_star_display(avg)
                 rating_str = f" {stars} ({avg:.1f})"
 
             if imdb_id:
@@ -626,7 +626,7 @@ async def all_movies(interaction: discord.Interaction):
             rating_str = ""
             if ratings:
                 avg = sum(ratings.values()) / len(ratings)
-                get_star_display(avg)
+                stars = get_star_display(avg)
                 rating_str = f" {stars} ({avg:.1f})"
 
             if imdb_id:
