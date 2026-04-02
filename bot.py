@@ -113,6 +113,16 @@ def get_star_display(rating):
     """Generate star display - just shows number with star"""
     return f"⭐ {rating:.1f}"
 
+def get_rating_value(rating_entry):
+    """Extract numeric rating from rating entry (handles both old int and new dict formats)"""
+    if isinstance(rating_entry, dict):
+        return rating_entry.get('rating', 0)
+def get_rating_avg(ratings):
+    """Calculate average rating from ratings dict (handles both old int and new dict formats)"""
+    if not ratings:
+        return 0
+    return sum(get_rating_value(r) for r in ratings.values()) / len(ratings)
+
 def load_movies():
     """Load movies from JSON file"""
     if os.path.exists(DB_FILE):
@@ -330,14 +340,16 @@ async def movie_info(interaction: discord.Interaction, movie_name: str):
                 break
 
         if local_ratings:
-            avg = sum(local_ratings.values()) / len(local_ratings)
+            avg = get_rating_avg(local_ratings)
             stars = get_star_display(avg)
             embed.add_field(name="Community Rating", value=f"{stars} ({avg:.1f}) from {len(local_ratings)} user(s)", inline=False)
 
             # Show each user's rating
             ratings_lines = []
             for user_id, rating in local_ratings.items():
-                ratings_lines.append(f"• {rating}/5")
+                username = rating.get('username', 'Unknown') if isinstance(rating, dict) else 'Unknown'
+                rating_val = rating.get('rating', rating) if isinstance(rating, dict) else rating
+                ratings_lines.append(f"• {username}: {rating_val}/5")
             embed.add_field(name="User Ratings", value="\n".join(ratings_lines), inline=False)
 
         embed.set_footer(text=f"IMDb ID: {movie_data['imdb_id']}")
@@ -401,7 +413,7 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
                 if target_id in movie['ratings']:
                     del movie['ratings'][target_id]
             else:
-                movie['ratings'][target_id] = rating
+                movie['ratings'][target_id] = {"rating": rating, "username": target_name}
 
             found = True
             break
@@ -430,7 +442,7 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
         else:
             # Calculate average
             ratings = movie.get('ratings', {})
-            avg = sum(ratings.values()) / len(ratings) if ratings else 0
+            avg = get_rating_avg(ratings)
             stars = get_star_display(avg)
             await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! {stars} (avg: {avg:.1f})')
     else:
@@ -450,8 +462,8 @@ async def my_ratings(interaction: discord.Interaction):
         title = movie.get('title') if isinstance(movie, dict) else movie
         ratings = movie.get('ratings', {})
         if user_id in ratings:
-            user_rating = ratings[user_id]
-            avg = sum(ratings.values()) / len(ratings) if ratings else 0
+            user_rating = get_rating_value(ratings[user_id])
+            avg = get_rating_avg(ratings)
             rated_movies.append({
                 'title': title,
                 'your_rating': user_rating,
@@ -643,7 +655,7 @@ async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
     # Sort movies
     def get_rating(movie):
         ratings = movie.get('ratings', {})
-        return sum(ratings.values()) / len(ratings) if ratings else 0
+        return get_rating_avg(ratings)
 
     def get_sort_key(movie):
         title = movie.get('title', '') if isinstance(movie, dict) else movie
