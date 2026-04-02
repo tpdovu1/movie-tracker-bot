@@ -144,10 +144,13 @@ async def on_ready():
         print(f'Clear commands warning: {e}')
 
     try:
-        synced = await bot.tree.sync()
+        import asyncio
+        synced = await asyncio.wait_for(bot.tree.sync(), timeout=30.0)
         print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
     except Exception as e:
         print(f'Sync error: {e}')
+        import traceback
+        traceback.print_exc()
     print(f'{bot.user} has connected to Discord!')
     print('------')
 
