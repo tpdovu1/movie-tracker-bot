@@ -4,6 +4,7 @@ from discord import app_commands
 import json
 import os
 import re
+import asyncio
 from dotenv import load_dotenv
 import requests
 import random
@@ -135,17 +136,19 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
-    print('Clearing existing slash commands...')
-    try:
-        bot.tree.clear_commands(guild=None)
-        print('Cleared global commands')
-    except Exception as e:
-        print(f'Clear error: {e}')
-
     print('Syncing slash commands...')
     try:
         synced = await bot.tree.sync()
         print(f'Synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
+
+        command_names = [cmd.name for cmd in synced]
+        # If new command not found, clear and retry
+        if 'claim_movie' not in command_names:
+            print('New command not found, clearing and retrying...')
+            bot.tree.clear_commands(guild=None)
+            await asyncio.sleep(1)
+            synced = await bot.tree.sync()
+            print(f'Retry synced {len(synced)} commands: {[cmd.name for cmd in synced]}')
     except Exception as e:
         print(f'Sync error: {e}')
     print(f'{bot.user} has connected to Discord!')
