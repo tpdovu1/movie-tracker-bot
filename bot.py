@@ -115,8 +115,11 @@ def get_star_display(rating):
 
 def get_rating_value(rating_entry):
     """Extract numeric rating from rating entry (handles both old int and new dict formats)"""
+    if rating_entry is None:
+        return 0
     if isinstance(rating_entry, dict):
         return rating_entry.get('rating', 0)
+    return rating_entry  # Legacy support for old int format
 def get_rating_avg(ratings):
     """Calculate average rating from ratings dict (handles both old int and new dict formats)"""
     if not ratings:
