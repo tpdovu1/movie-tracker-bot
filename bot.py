@@ -111,7 +111,7 @@ def is_url(input_str):
     return bool(re.search(url_pattern, input_str, re.IGNORECASE))
 
 async def get_tmdb_similar(movie_name):
-    """Get similar movies from TMDB based on movie name"""
+    """Get movie recommendations from TMDB based on movie name"""
     if not TMDB_API_KEY:
         return []
 
@@ -124,8 +124,8 @@ async def get_tmdb_similar(movie_name):
         if data.get('results') and len(data['results']) > 0:
             tmdb_id = data['results'][0]['id']
 
-            # Get similar movies
-            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/similar?api_key={TMDB_API_KEY}"
+            # Get recommendations (movies people who liked this also watched)
+            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/recommendations?api_key={TMDB_API_KEY}"
             response = requests.get(similar_url, timeout=5)
             similar_data = response.json()
 
@@ -548,7 +548,7 @@ async def random_movie(interaction: discord.Interaction):
 
 
 async def get_tmdb_similar(movie_name):
-    """Get similar movies from TMDB based on movie name"""
+    """Get movie recommendations from TMDB based on movie name"""
     if not TMDB_API_KEY:
         return []
 
@@ -561,8 +561,8 @@ async def get_tmdb_similar(movie_name):
         if data.get('results') and len(data['results']) > 0:
             tmdb_id = data['results'][0]['id']
 
-            # Get similar movies
-            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/similar?api_key={TMDB_API_KEY}"
+            # Get recommendations (movies people who liked this also watched)
+            similar_url = f"https://api.themoviedb.org/3/movie/{tmdb_id}/recommendations?api_key={TMDB_API_KEY}"
             response = requests.get(similar_url, timeout=5)
             similar_data = response.json()
 
