@@ -458,8 +458,6 @@ async def all_movies(interaction: discord.Interaction):
                 movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/)" + (f" *(added by {added_username})*" if added_username else ""))
             else:
                 movie_lines.append(f"📝 {title}" + (f" *(added by {added_username})*" if added_username else ""))
-            else:
-                movie_lines.append(f"📝 {title}")
         want_list = '\n'.join(movie_lines)
         embed.add_field(name="Want to Watch 📋", value=want_list, inline=False)
 
