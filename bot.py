@@ -128,9 +128,15 @@ def save_movies(data):
 @bot.event
 async def on_ready():
     """Called when bot is ready"""
-    await bot.tree.sync()
+    print('Syncing slash commands...')
+    try:
+        synced = await bot.tree.sync()
+        print(f'Synced {len(synced)} commands: {synced}')
+    except Exception as e:
+        print(f'Sync error: {e}')
+        import traceback
+        traceback.print_exc()
     print(f'{bot.user} has connected to Discord!')
-    print(f'Synced slash commands')
     print('------')
 
 @bot.tree.command(name='add_watched', description='Add a movie to watched list')
