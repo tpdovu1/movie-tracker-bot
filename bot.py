@@ -595,7 +595,7 @@ async def watched(interaction: discord.Interaction):
         # Calculate average rating
         rating_str = ""
         if ratings:
-            avg = sum(ratings.values()) / len(ratings)
+            avg = get_rating_avg(ratings)
             stars = get_star_display(avg)
             rating_str = f" {stars} ({avg:.1f})"
 
@@ -630,7 +630,7 @@ async def want_to_watch(interaction: discord.Interaction):
         # Calculate average rating
         rating_str = ""
         if ratings:
-            avg = sum(ratings.values()) / len(ratings)
+            avg = get_rating_avg(ratings)
             stars = get_star_display(avg)
             rating_str = f" {stars} ({avg:.1f})"
 
@@ -678,7 +678,7 @@ async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
             # Calculate average rating
             rating_str = ""
             if ratings:
-                avg = sum(ratings.values()) / len(ratings)
+                avg = get_rating_avg(ratings)
                 stars = get_star_display(avg)
                 rating_str = f" {stars} ({avg:.1f})"
 
@@ -700,7 +700,7 @@ async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
             # Calculate average rating
             rating_str = ""
             if ratings:
-                avg = sum(ratings.values()) / len(ratings)
+                avg = get_rating_avg(ratings)
                 stars = get_star_display(avg)
                 rating_str = f" {stars} ({avg:.1f})"
 
