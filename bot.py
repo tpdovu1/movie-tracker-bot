@@ -386,7 +386,7 @@ async def movie_info(interaction: discord.Interaction, movie_name: str):
         if local_ratings:
             avg = get_rating_avg(local_ratings)
             stars = get_star_display(avg)
-            embed.add_field(name="Community Rating", value=f"{stars} ({avg:.1f}) from {len(local_ratings)} user(s)", inline=False)
+            embed.add_field(name="Community Rating", value=f"{stars} from {len(local_ratings)} user(s)", inline=False)
 
             # Show each user's rating
             ratings_lines = []
@@ -478,8 +478,7 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
             # Calculate average
             ratings = movie.get('ratings', {})
             avg = get_rating_avg(ratings)
-            stars = get_star_display(avg)
-            await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! {stars} (avg: {avg:.1f})')
+            await interaction.response.send_message(f'✅ Rated **{movie_name}** {rating}/5 stars! (avg: {avg:.1f})')
     else:
         await interaction.response.send_message(f'❌ "{movie_name}" not found in any list!')
 
@@ -743,7 +742,7 @@ async def watched(interaction: discord.Interaction):
         if ratings:
             avg = get_rating_avg(ratings)
             stars = get_star_display(avg)
-            rating_str = f" {stars} ({avg:.1f})"
+            rating_str = f" {stars}"
 
         if imdb_id:
             movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
@@ -778,7 +777,7 @@ async def want_to_watch(interaction: discord.Interaction):
         if ratings:
             avg = get_rating_avg(ratings)
             stars = get_star_display(avg)
-            rating_str = f" {stars} ({avg:.1f})"
+            rating_str = f" {stars}"
 
         if imdb_id:
             movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
@@ -826,7 +825,7 @@ async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
             if ratings:
                 avg = get_rating_avg(ratings)
                 stars = get_star_display(avg)
-                rating_str = f" {stars} ({avg:.1f})"
+                rating_str = f" {stars}"
 
             if imdb_id:
                 movie_lines.append(f"✅ [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
@@ -848,7 +847,7 @@ async def all_movies(interaction: discord.Interaction, sort_by: str = "alpha"):
             if ratings:
                 avg = get_rating_avg(ratings)
                 stars = get_star_display(avg)
-                rating_str = f" {stars} ({avg:.1f})"
+                rating_str = f" {stars}"
 
             if imdb_id:
                 movie_lines.append(f"📝 [{title}](https://www.imdb.com/title/{imdb_id}/){rating_str}" + (f" *(added by {added_username})*" if added_username else ""))
