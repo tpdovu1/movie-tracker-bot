@@ -337,14 +337,17 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
     # Collect all movie titles from both lists
     for movie in movies['watched'] + movies['want_to_watch']:
         title = movie.get('title') if isinstance(movie, dict) else movie
+        imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
         if title:
-            all_movies.append(title)
+            # Encode imdb_id in value as "title|imdb_id"
+            value = f"{title}|{imdb_id}" if imdb_id else title
+            all_movies.append((title, value))
 
     # Filter by current input and return up to 25 choices
     if current:
-        all_movies = [m for m in all_movies if current.lower() in m.lower()]
+        all_movies = [(t, v) for t, v in all_movies if current.lower() in t.lower()]
 
-    return [app_commands.Choice(name=movie, value=movie) for movie in sorted(all_movies)[:25]]
+    return [app_commands.Choice(name=title, value=value) for title, value in sorted(all_movies, key=lambda x: x[0])[:25]]
 
 
 @bot.tree.command(name='movie_info', description='Get IMDb info about a movie')
@@ -358,7 +361,14 @@ async def movie_info(interaction: discord.Interaction, movie_name: str):
         await interaction.followup.send('❌ IMDb API key not configured!')
         return
 
-    movie_data = await get_movie_info(movie_name)
+    # Parse movie_name which may contain imdb_id as "title|imdb_id"
+    imdb_id = None
+    if '|' in movie_name:
+        parts = movie_name.rsplit('|', 1)
+        movie_name = parts[0]
+        imdb_id = parts[1] if parts[1] != 'None' else None
+
+    movie_data = await get_movie_info(movie_name, imdb_id)
 
     if movie_data:
         embed = discord.Embed(title=movie_data['title'], color=discord.Color.gold())
@@ -414,14 +424,17 @@ async def movie_name_autocomplete(interaction: discord.Interaction, current: str
     # Collect all movie titles from both lists
     for movie in movies['watched'] + movies['want_to_watch']:
         title = movie.get('title') if isinstance(movie, dict) else movie
+        imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
         if title:
-            all_movies.append(title)
+            # Encode imdb_id in value as "title|imdb_id"
+            value = f"{title}|{imdb_id}" if imdb_id else title
+            all_movies.append((title, value))
 
     # Filter by current input and return up to 25 choices
     if current:
-        all_movies = [m for m in all_movies if current.lower() in m.lower()]
+        all_movies = [(t, v) for t, v in all_movies if current.lower() in t.lower()]
 
-    return [app_commands.Choice(name=movie, value=movie) for movie in sorted(all_movies)[:25]]
+    return [app_commands.Choice(name=title, value=value) for title, value in sorted(all_movies, key=lambda x: x[0])[:25]]
 
 
 @bot.tree.command(name='rate', description='Rate a movie (0-5 stars)')
@@ -447,6 +460,10 @@ async def rate(interaction: discord.Interaction, movie_name: str, rating: float 
 
     def get_title(movie):
         return movie.get('title') if isinstance(movie, dict) else movie
+
+    # Parse movie_name which may contain imdb_id as "title|imdb_id"
+    if '|' in movie_name:
+        movie_name = movie_name.rsplit('|', 1)[0]
 
     # Check if movie is in want_to_watch - can't rate from there
     want_titles = [get_title(m).lower() for m in movies['want_to_watch']]
