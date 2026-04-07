@@ -644,6 +644,12 @@ async def recommend(interaction: discord.Interaction, movie1: str, movie2: str =
     if movie3:
         base_movies.append(movie3)
 
+    # Parse imdb_id from autocomplete values if present (format: "title|imdb_id")
+    base_movies = [
+        m.rsplit('|', 1)[0] if '|' in m else m
+        for m in base_movies
+    ]
+
     # Get similar movies for each base movie
     all_similar = {}
     titles_searched = []
