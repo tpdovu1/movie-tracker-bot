@@ -38,7 +38,7 @@ def is_admin(interaction: discord.Interaction) -> bool:
     """Check if user is an admin"""
     return str(interaction.user.id) in ADMIN_USER_IDS
 
-async def get_movie_info(movie_name):
+async def get_movie_info(movie_name, imdb_id=None):
     """Fetch movie info from OMDb API"""
     if not OMDB_API_KEY:
         return None
@@ -49,7 +49,11 @@ async def get_movie_info(movie_name):
         return movie_info
 
     try:
-        url = f"http://www.omdbapi.com/?t={movie_name}&apikey={OMDB_API_KEY}"
+        # Use imdb_id if available for exact match, otherwise search by title
+        if imdb_id:
+            url = f"http://www.omdbapi.com/?i={imdb_id}&apikey={OMDB_API_KEY}"
+        else:
+            url = f"http://www.omdbapi.com/?t={movie_name}&apikey={OMDB_API_KEY}"
         response = requests.get(url, timeout=5)
         data = response.json()
 
@@ -532,16 +536,13 @@ async def random_movie(interaction: discord.Interaction):
         await interaction.followup.send('📋 Your want to watch list is empty! Add some movies first.')
         return
 
-    # DEBUG: Show what we're picking from
-    await interaction.followup.send(f"DEBUG - Raw want_to_watch: {movies['want_to_watch']}")
-    return
-
     # Pick a random movie (handle both dict and string formats)
     movie = random.choice(movies['want_to_watch'])
     chosen_movie = movie.get('title') if isinstance(movie, dict) else movie
+    movie_imdb_id = movie.get('imdb_id') if isinstance(movie, dict) else None
 
     # Fetch IMDb data
-    movie_info = await get_movie_info(chosen_movie)
+    movie_info = await get_movie_info(chosen_movie, movie_imdb_id)
 
     if movie_info:
         embed = discord.Embed(title=f"🎲 Random Pick: {movie_info['title']}", color=discord.Color.gold())
