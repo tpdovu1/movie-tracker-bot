@@ -532,6 +532,10 @@ async def random_movie(interaction: discord.Interaction):
         await interaction.followup.send('📋 Your want to watch list is empty! Add some movies first.')
         return
 
+    # DEBUG: Show what we're picking from
+    await interaction.followup.send(f"DEBUG - Raw want_to_watch: {movies['want_to_watch']}")
+    return
+
     # Pick a random movie (handle both dict and string formats)
     movie = random.choice(movies['want_to_watch'])
     chosen_movie = movie.get('title') if isinstance(movie, dict) else movie
