@@ -10,6 +10,11 @@ A Discord bot to manage movies you've watched and want to watch with your friend
 - 📊 **View Lists** - See your watched movies, want to watch list, or all movies at once
 - 🎨 **Beautiful Embeds** - Nice formatted messages with emojis
 - 💾 **Persistent Storage** - Movies are saved to a JSON file and persist between bot restarts
+- ⭐ **Rate Movies** - Rate movies on a 0-5 star scale
+- 🎲 **Random Movie Picker** - Get a random movie suggestion from your want to watch list
+- 🍿 **IMDb Integration** - Get movie info (poster, rating, plot) via IMDb
+- 🤖 **Recommendations** - Get movie recommendations based on 1-3 movies you like
+- 👤 **User Attribution** - See who added which movie to the list
 
 ## Setup Instructions
 
@@ -30,6 +35,7 @@ A Discord bot to manage movies you've watched and want to watch with your friend
    - Embed Links
    - Read Message History
    - Add Reactions
+   - Use Application Commands
 4. Copy the generated URL and open it in your browser
 5. Select the server where you want to add the bot and authorize it
 
@@ -59,33 +65,51 @@ You should see a message like:
 YourBotName#1234 has connected to Discord!
 ```
 
-## Commands
+## Commands (Slash Commands)
 
 ### Adding Movies
 
-- `!add_watched <movie name>` - Add a movie to your watched list
-- `!add_want <movie name>` - Add a movie to your want to watch list
+- `/add_watched [movie]` - Add a movie to watched list
+- `/add_want [movie]` - Add a movie to want to watch list
 
-### Viewing Movies
+### Viewing & Searching Movies
 
-- `!watched` - Show all watched movies
-- `!want_to_watch` - Show all movies you want to watch
-- `!all_movies` - Show all movies in both lists
+- `/watched` - Show all watched movies
+- `/want_to_watch` - Show all movies you want to watch
+- `/all_movies` - Show all movies in both lists
+- `/movie_info [movie]` - Get IMDb info about a movie (poster, rating, plot)
+- `/my_ratings` - Show movies you have rated
+
+### Movie Discovery
+
+- `/random_movie` - Pick a random movie from your want to watch list
+- `/recommend [movies]` - Get recommendations based on 1-3 movies you like
 
 ### Managing Movies
 
-- `!remove_movie <movie name>` - Remove a movie from any list
-- `!clear_all` - Clear all movies (requires confirmation with emoji reaction)
-- `!help` - Show all available commands
+- `/remove_movie [movie]` - Remove a movie from any list
+- `/rate [movie] [rating]` - Rate a movie (0-5 stars)
+- `/clear_all` - Clear all movies (requires confirmation)
+- `/health` - Check bot health status (admin only)
+- `/refresh_imdb` - Update IMDb IDs for all movies
+
+### Other
+
+- `/help` - Show all available commands
+- `/claim_movie` - Claim a movie as added by a user
 
 ## Examples
 
 ```
-!add_watched The Shawshank Redemption
-!add_want Inception
-!watched
-!all_movies
-!remove_movie The Matrix
+/add_watched The Shawshank Redemption
+/add_want Inception
+/watched
+/all_movies
+/movie_info Inception
+/rate Inception 5
+/random_movie
+/recommend The Matrix, Inception, Interstellar
+/remove_movie The Matrix
 ```
 
 ## Data Storage
@@ -96,8 +120,21 @@ Example `movies.json`:
 
 ```json
 {
-  "watched": ["The Shawshank Redemption", "Inception"],
-  "want_to_watch": ["Oppenheimer", "Barbie"]
+  "watched": [
+    {
+      "title": "The Shawshank Redemption",
+      "imdb_id": "tt0111161",
+      "rated": 5,
+      "added_by": "User#1234"
+    }
+  ],
+  "want_to_watch": [
+    {
+      "title": "Inception",
+      "imdb_id": "tt1375666",
+      "added_by": "User#5678"
+    }
+  ]
 }
 ```
 
@@ -107,29 +144,22 @@ Example `movies.json`:
 
 - Make sure the bot has permissions to send messages in the channel
 - Ensure your bot token is correct in the `.env` file
-- Check that you're using the correct command prefix (`!`)
+- Try re-invoking the slash command (they may not register on first try)
 
 ### Bot is offline
 
 - Check the terminal for error messages
 - Verify your bot token is valid
-- Make sure you have the `python-dotenv` package installed
+- Make sure you have the `discord.py` package installed
 
 ### Movies not saving
 
 - Ensure the bot has read/write permissions in the folder
 - Check that `movies.json` exists (it's created automatically on first run)
 
-## Extending the Bot
+### IMDb features not working
 
-Here are some ideas for additional features:
-
-- Add ratings/scores for movies
-- Add genre tags
-- Add release year filtering
-- Add a "currently watching" list
-- Add movie ratings from an API (IMDb, TMDB)
-- Share lists between multiple Discord servers
+- Make sure `OMDB_API_KEY` is set in your `.env` file (optional)
 
 ## Support
 

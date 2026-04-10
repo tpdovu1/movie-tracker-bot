@@ -1,5 +1,5 @@
 import discord
-from discord.ext import commands
+from discord.ext import commands, tasks
 from discord import app_commands
 import json
 import os
@@ -8,17 +8,79 @@ import asyncio
 from dotenv import load_dotenv
 import requests
 import random
+from datetime import datetime, timezone
+import pytz
 
 # Load environment variables
 load_dotenv()
 TOKEN = os.getenv('DISCORD_TOKEN')
 OMDB_API_KEY = os.getenv('OMDB_API_KEY')
 TMDB_API_KEY = os.getenv('TMDB_API_KEY')
+OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+TIMEZONE = os.getenv('TIMEZONE', 'America/Chicago')
+HEALTH_CHECK_CHANNEL_ID = os.getenv('HEALTH_CHECK_CHANNEL_ID')
 
 # Initialize bot
 intents = discord.Intents.default()
 intents.message_content = True
 bot = commands.Bot(command_prefix='/', intents=intents)
+
+# Health check task - runs daily at 9am
+@tasks.loop(hours=24)
+async def daily_health_check():
+    """Daily health check to verify bot is running"""
+    if not HEALTH_CHECK_CHANNEL_ID:
+        return
+
+    try:
+        # Get target timezone
+        target_tz = pytz.timezone(TIMEZONE)
+        now = datetime.now(target_tz)
+
+        # Only run at 9am
+        if now.hour != 9:
+            return
+
+        channel = bot.get_channel(int(HEALTH_CHECK_CHANNEL_ID))
+        if not channel:
+            return
+
+        # Load movie stats
+        movies = load_movies()
+        watched_count = len(movies.get('watched', []))
+        want_count = len(movies.get('want_to_watch', []))
+
+        # Check IMDb API if configured
+        imdb_status = "✅ Configured" if OMDB_API_KEY else "❌ Not configured"
+
+        embed = discord.Embed(
+            title="🎬 Movie Tracker Bot - Daily Health Check",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Bot Status", value="✅ Running", inline=True)
+        embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
+        embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
+        embed.add_field(name="IMDb API", value=imdb_status, inline=True)
+        # Generate philosophical quote if OpenAI is configured
+        quote = ""
+        if OPENAI_API_KEY:
+            quote = await generate_motivational_quote()
+
+        embed = discord.Embed(
+            title="🎬 Movie Tracker Bot - Daily Health Check",
+            color=discord.Color.green()
+        )
+        embed.add_field(name="Bot Status", value="✅ Running", inline=True)
+        embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
+        embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
+        embed.add_field(name="IMDb API", value=imdb_status, inline=True)
+        if quote:
+            embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
+        embed.add_field(name="Time", value=f"{now.strftime('%Y-%m-%d %I:%M %p')} {TIMEZONE}", inline=False)
+
+        await channel.send(embed=embed)
+    except Exception as e:
+        print(f"Health check error: {e}")
 
 # Database file - use persistent volume path on Railway, local path otherwise
 DB_FILE = os.getenv('MOVIES_DATA_PATH', 'movies.json')
@@ -171,6 +233,36 @@ def get_rating_avg(ratings):
         return 0
     return sum(get_rating_value(r) for r in ratings.values()) / len(ratings)
 
+async def generate_motivational_quote():
+    """Generate a motivational philosophical quote using OpenAI"""
+    if not OPENAI_API_KEY:
+        return ""
+
+    try:
+        headers = {
+            "Authorization": f"Bearer {OPENAI_API_KEY}",
+            "Content-Type": "application/json"
+        }
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [
+                {"role": "system", "content": "You are a wise philosopher. Generate one short, inspirational motivational quote about life, movies, or personal growth. Keep it under 280 characters. No explanation needed."}
+            ],
+            "max_tokens": 100
+        }
+        response = requests.post(
+            "https://api.openai.com/v1/chat/completions",
+            headers=headers,
+            json=payload,
+            timeout=10
+        )
+        if response.status_code == 200:
+            data = response.json()
+            return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        print(f"OpenAI quote error: {e}")
+    return ""
+
 def load_movies():
     """Load movies from JSON file"""
     if os.path.exists(DB_FILE):
@@ -223,6 +315,10 @@ async def on_ready():
         print(f'Sync error: {e}')
     print(f'{bot.user} has connected to Discord!')
     print('------')
+
+    # Start daily health check
+    daily_health_check.start()
+    print(f'Daily health check scheduled for 9am {TIMEZONE}')
 
 @bot.tree.command(name='add_watched', description='Add a movie to watched list')
 @app_commands.check(is_allowed_channel)
@@ -990,6 +1086,7 @@ async def help_command(interaction: discord.Interaction):
     admin_commands = [
         ("/claim_movie <movie> [claimed_by]", "Claim ownership of a movie"),
         ("/clear_all", "Clear all movies (requires confirmation)"),
+        ("/health", "Check bot health status"),
         ("/refresh_imdb", "Update IMDb IDs for all movies"),
     ]
 
@@ -1043,6 +1140,38 @@ async def refresh_imdb(interaction: discord.Interaction):
         save_movies(movies)
 
     await interaction.followup.send(f"✅ Updated IMDb IDs for {updated_count} movies!" + (f"\nErrors: {', '.join(errors)}" if errors else ""))
+
+@bot.tree.command(name='health', description='Check bot health status')
+@app_commands.check(is_admin)
+async def health_check(interaction: discord.Interaction):
+    """Manual health check command"""
+    await interaction.response.defer()
+
+    movies = load_movies()
+    watched_count = len(movies.get('watched', []))
+    want_count = len(movies.get('want_to_watch', []))
+
+    imdb_status = "✅ Configured" if OMDB_API_KEY else "❌ Not configured"
+    openai_status = "✅ Configured" if OPENAI_API_KEY else "❌ Not configured"
+
+    # Generate quote if OpenAI is configured
+    quote = ""
+    if OPENAI_API_KEY:
+        quote = await generate_motivational_quote()
+
+    embed = discord.Embed(
+        title="🎬 Movie Tracker Bot - Health Check",
+        color=discord.Color.green()
+    )
+    embed.add_field(name="Bot Status", value="✅ Running", inline=True)
+    embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
+    embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
+    embed.add_field(name="IMDb API", value=imdb_status, inline=True)
+    embed.add_field(name="OpenAI API", value=openai_status, inline=True)
+    if quote:
+        embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
+
+    await interaction.followup.send(embed=embed)
 
 # Error handler for app commands
 @bot.tree.error
