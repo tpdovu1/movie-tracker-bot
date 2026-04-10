@@ -61,7 +61,8 @@ async def daily_health_check():
         embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
         embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
         embed.add_field(name="IMDb API", value=imdb_status, inline=True)
-        # Generate philosophical quote if OpenAI is configured
+
+        # Generate philosophical quote if OpenAI is configured (before other fields)
         quote = ""
         if OPENAI_API_KEY:
             quote = await generate_motivational_quote()
@@ -70,12 +71,12 @@ async def daily_health_check():
             title="🎬 Movie Tracker Bot - Daily Health Check",
             color=discord.Color.green()
         )
+        if quote:
+            embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
         embed.add_field(name="Bot Status", value="✅ Running", inline=True)
         embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
         embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
         embed.add_field(name="IMDb API", value=imdb_status, inline=True)
-        if quote:
-            embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
         embed.add_field(name="Time", value=f"{now.strftime('%Y-%m-%d %I:%M %p')} {TIMEZONE}", inline=False)
 
         await channel.send(embed=embed)
@@ -246,7 +247,7 @@ async def generate_motivational_quote():
         payload = {
             "model": "gpt-4o-mini",
             "messages": [
-                {"role": "system", "content": "You are a wise philosopher. Generate one short, inspirational motivational quote about life, movies, or personal growth. Keep it under 280 characters. No explanation needed."}
+                {"role": "system", "content": "You are a film and TV expert. Generate one short, inspirational quote from a real famous filmmaker, director, actor, or screenwriter (e.g., Akira Kurosawa, Alfred Hitchcock, Stanley Kubrick, Martin Scorsese, Steven Spielberg, Francis Ford Coppola, James Cameron, etc.) about film, storytelling, or creativity. Keep it under 280 characters. Include the author name. No explanation needed."}
             ],
             "max_tokens": 100
         }
@@ -1163,13 +1164,13 @@ async def health_check(interaction: discord.Interaction):
         title="🎬 Movie Tracker Bot - Health Check",
         color=discord.Color.green()
     )
+    if quote:
+        embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
     embed.add_field(name="Bot Status", value="✅ Running", inline=True)
     embed.add_field(name="Watched Movies", value=f"{watched_count}", inline=True)
     embed.add_field(name="Want to Watch", value=f"{want_count}", inline=True)
     embed.add_field(name="IMDb API", value=imdb_status, inline=True)
     embed.add_field(name="OpenAI API", value=openai_status, inline=True)
-    if quote:
-        embed.add_field(name="Quote of the Day", value=f"*{quote}*", inline=False)
 
     await interaction.followup.send(embed=embed)
 
